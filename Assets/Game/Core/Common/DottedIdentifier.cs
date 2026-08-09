@@ -15,6 +15,11 @@ namespace Varynth.Core.Common
 
         public static bool IsValid(string value, out string reason)
         {
+            return IsValid(value, minSegments: 2, out reason);
+        }
+
+        public static bool IsValid(string value, int minSegments, out string reason)
+        {
             if (value is null)
             {
                 reason = "value is null";
@@ -40,9 +45,11 @@ namespace Varynth.Core.Common
             }
 
             var segments = value.Split('.');
-            if (segments.Length < 2)
+            if (segments.Length < minSegments)
             {
-                reason = "value must contain at least two dot-separated segments";
+                reason = minSegments <= 1
+                    ? "value must contain at least one segment"
+                    : $"value must contain at least {minSegments} dot-separated segments";
                 return false;
             }
 

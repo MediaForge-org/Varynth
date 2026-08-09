@@ -32,7 +32,8 @@ Simulation (Ökonomie, Bevölkerung, Produktion, Logistik, Forschung, Diplomatie
 
 Assembly-Definitionsdateien (`.asmdef`) trennen Domänen, um zyklische Abhängigkeiten strukturell zu verhindern und Editor-only-Code (Blender-Tooling, Validatoren) vom Runtime-Build fernzuhalten. Abhängigkeitsrichtung strikt von unten nach oben (Presentation/Narrative dürfen Core referenzieren, nie umgekehrt):
 
-- `Varynth.Core.Definitions` — Definitionsdatentypen, XML-Ladepipeline, Validierung, ID-/Namespace-Registry, keine Unity-Engine-Abhängigkeit wo vermeidbar.
+- `Varynth.Core.Definitions` — Definitionsdatentypen, ID-/Namespace-Primitiven (`ContentId`, `ContentSourceId`, `LocalizationKey`), generische `ContentRegistry<T>`, `ContentReference<T>`, keine Unity-Engine-Abhängigkeit (`noEngineReferences: true`).
+- `Varynth.Data` — datengetriebene Lade-Pipeline: XML-Parsing (gehärtet, kein DTD/keine externen Entities), Content-Source-/Mod-Manifest-Abstraktion, deterministische Ladeorder, Definition-Loader, Validierungs-/Report-Mechanismus (Phase 1B). Referenziert `Varynth.Core.Definitions`, `noEngineReferences: true`. Wird nur beim Content-Laden gebraucht, nicht von `Varynth.Core.Simulation`/`Presentation` zur Laufzeit referenziert.
 - `Varynth.Core.Simulation` — Wirtschaftssimulation, Bevölkerung, Produktion, Logistik, Forschung, Diplomatie/KI, Utilities, Disasters, Expeditionen; Engine-unabhängig, wo möglich reines C#.
 - `Varynth.World` — Grid/Bauplatzierung, Region-/Weltinstanzen, Weltwechsel, Streaming-Koordination; Bindeglied zwischen Simulation und Unity-Szene.
 - `Varynth.Presentation` — Rendering-Repräsentation, Instancing/LOD-Steuerung, VFX, Kamera; liest Simulationszustand read-only.

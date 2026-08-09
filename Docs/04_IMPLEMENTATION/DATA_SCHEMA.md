@@ -6,7 +6,7 @@ Status: erste technische Schema-Arbeitsfassung, kein Code, keine konkreten Werte
 
 - **XML als moddbarer Contentpfad.** Definitionen werden aus XML (oder modseitig äquivalenten datengetriebenen Quellen) geladen; die Architektur setzt nicht voraus, dass Content nur in C#/ScriptableObjects existieren kann.
 - **Stabile IDs.** Jede Definition hat eine stabile, unveränderliche ID. Anzeigenamen sind lokalisierbar und dürfen sich ändern; IDs nicht (Migration nötig, falls doch).
-- **Mod-Namespaces.** Core-Content liegt im reservierten `core.*`-artigen Namensraum (exakte Präfix-Konvention siehe §2); Mods erhalten eigene Namespaces und dürfen nicht mit Core oder anderen Mods kollidieren.
+- **Mod-Namespaces.** Core-Content nutzt die in `CONTENT_CATALOG_v1.0.md` definierten Domänenpräfixe (`res.*`/`good.*`/`bld.*`/... — siehe §2), nicht ein reserviertes Wort wie `core.*`. Ob eine Definition "Core" ist, ergibt sich aus ihrer Herkunft (`ContentSourceId`/`ContentSourceType`, siehe Phase 1B/`PHASE_1B_DATA_FOUNDATION.md`), nicht aus einem ID-Präfix. Mods erhalten eigene, davon unterscheidbare Namespaces (technisch durchgesetzt: eine Mod-Source darf in Phase 1B nur IDs unterhalb ihrer eigenen `ContentSourceId` neu definieren) und dürfen nicht mit Core- oder anderen Mod-Namespaces kollidieren.
 - **Keine festen Obergrenzen.** Kein `maxCivilizationTier`, `ultimaMaxTier`, `maxAutomationGrade` o. ä. im Schema oder Code.
 - **Referenzen statt Kopien.** Savegames und Laufzeitzustand referenzieren Definitionen über ID, kopieren nie vollständige Definitionsdaten.
 - **Validierung.** Jede Definition muss gegen ein Schema/Regelwerk prüfbar sein (eindeutige IDs, aufgelöste Referenzen, keine verwaisten Abhängigkeiten) — siehe `QA_GATES.md` und `Tools/Validation/`.

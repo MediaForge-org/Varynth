@@ -3,6 +3,7 @@
     "rootNamespace": "Varynth.Tests.EditMode",
     "references": [
         "Varynth.Core.Definitions",
+        "Varynth.Data",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
