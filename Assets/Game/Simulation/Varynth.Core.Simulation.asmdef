@@ -1,0 +1,16 @@
+{
+    "name": "Varynth.Core.Simulation",
+    "rootNamespace": "Varynth.Core.Simulation",
+    "references": [
+        "Varynth.Core.Definitions"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

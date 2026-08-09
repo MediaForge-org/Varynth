@@ -4,6 +4,7 @@
     "references": [
         "Varynth.Core.Definitions",
         "Varynth.Data",
+        "Varynth.Core.Simulation",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
