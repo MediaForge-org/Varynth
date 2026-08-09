@@ -24,3 +24,6 @@
 *.hlsl text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# Unity-generated metadata may contain trailing spaces in empty YAML values
+*.meta -whitespace
