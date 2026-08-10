@@ -1,19 +1,20 @@
 {
-    "name": "Varynth.Tests.EditMode",
-    "rootNamespace": "Varynth.Tests.EditMode",
+    "name": "Varynth.Tests.PlayMode",
+    "rootNamespace": "Varynth.Tests.PlayMode",
     "references": [
         "Varynth.Core.Definitions",
-        "Varynth.Data",
-        "Varynth.Core.Simulation",
         "Varynth.World",
         "Varynth.Presentation",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
-    "includePlatforms": [
-        "Editor"
+    "includePlatforms": [],
+    "excludePlatforms": [
+        "LinuxStandalone64",
+        "WindowsStandalone64",
+        "WindowsStandalone32",
+        "macOSStandalone"
     ],
-    "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [

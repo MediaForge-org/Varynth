@@ -39,6 +39,7 @@ sysinfo.txt
 .claude/settings.local.json
 
 # Builds/packages
+Builds/
 *.apk
 *.aab
 *.app

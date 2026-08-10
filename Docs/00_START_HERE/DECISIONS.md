@@ -56,3 +56,19 @@ Verbindliche Projekt-Grundentscheidungen, Stand des Phase-0-Audits. Dieses Dokum
 - `Tools/Blender/{generators,exporters,previews,validators}` existieren als leere Scaffolding-Ordner.
 - Keine `.blend`-Dateien im Repository — 3D-Produktion hat noch nicht begonnen (planmäßig für Phase 0).
 - `Docs/07_LEGAL/THIRD_PARTY_LICENSES.md` und `ASSET_LICENSES.md` enthalten nur Platzhalter-/Skeletteinträge — kein externes Drittasset aktuell in Verwendung.
+
+## Phase 2A Prototypwerte (Varynth 0.1.0, nicht kanonisch)
+
+Zu Phase-0-Ende waren Maßstab und Grid ausdrücklich offen (siehe oben, §26 Mega-Prompt). Für
+den ersten sichtbaren Meilenstein (`WorldPrototype`-Szene) wurden folgende **technische
+Prototypwerte** verwendet — keine finalen Design-/Balancing-Entscheidungen, jederzeit änderbar,
+dokumentiert gemäß `.claude/rules/01-spec-authority.md`:
+
+- 1 Unity-Unit = 1 Meter (Engine-Konvention).
+- Grid-Zellgröße: 4.0 Units, Ursprung Welt-`(0,0)`.
+- Terrain-Weltgröße: 300×300 Units, `TerrainData.size.y` = 40, Terrain-`Transform.position.y` = −15.
+- Sea Level = Welt-Y 0 → normalisierte Terrainhöhe 15/40 = 0.375.
+- Testinsel-Heightmap: deterministischer Seed `20260809` (eigener Hash-/Value-Noise-Generator,
+  kein `UnityEngine.Random`).
+
+Details siehe `Docs/04_IMPLEMENTATION/PHASE_2A_WORLD_CAMERA_FOUNDATION.md`.

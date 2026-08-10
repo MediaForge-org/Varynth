@@ -1,0 +1,18 @@
+{
+    "name": "Varynth.Presentation",
+    "rootNamespace": "Varynth.Presentation",
+    "references": [
+        "Varynth.Core.Definitions",
+        "Varynth.World",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

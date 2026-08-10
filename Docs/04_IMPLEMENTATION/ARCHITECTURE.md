@@ -35,15 +35,15 @@ Assembly-Definitionsdateien (`.asmdef`) trennen Domänen, um zyklische Abhängig
 - `Varynth.Core.Definitions` — Definitionsdatentypen, ID-/Namespace-Primitiven (`ContentId`, `ContentSourceId`, `LocalizationKey`), generische `ContentRegistry<T>`, `ContentReference<T>`, keine Unity-Engine-Abhängigkeit (`noEngineReferences: true`).
 - `Varynth.Data` — datengetriebene Lade-Pipeline: XML-Parsing (gehärtet, kein DTD/keine externen Entities), Content-Source-/Mod-Manifest-Abstraktion, deterministische Ladeorder, Definition-Loader, Validierungs-/Report-Mechanismus (Phase 1B). Referenziert `Varynth.Core.Definitions`, `noEngineReferences: true`. Wird nur beim Content-Laden gebraucht, nicht von `Varynth.Core.Simulation`/`Presentation` zur Laufzeit referenziert.
 - `Varynth.Core.Simulation` — Wirtschaftssimulation, Bevölkerung, Produktion, Logistik, Forschung, Diplomatie/KI, Utilities, Disasters, Expeditionen; Engine-unabhängig, wo möglich reines C#. Fundament seit Phase 1C: `GameClock`/`GameTick` (deterministischer Tick-Zähler, keine Wall-Clock-/FPS-Kopplung), `SimulationScheduler`/`ISimulationSystem` (deterministische Systemreihenfolge), `SimulationContext`/`SimulationLevel`/`SimulationLevelMask` (ActiveNear/ActiveFar/Background), `PlayerId`/`ISimulationCommand` (Multiplayer-Future-Proofing, siehe unten). Referenziert nur `Varynth.Core.Definitions` (für Diagnostics), `noEngineReferences: true`.
-- `Varynth.World` — Grid/Bauplatzierung, Region-/Weltinstanzen, Weltwechsel, Streaming-Koordination; Bindeglied zwischen Simulation und Unity-Szene.
-- `Varynth.Presentation` — Rendering-Repräsentation, Instancing/LOD-Steuerung, VFX, Kamera; liest Simulationszustand read-only.
+- `Varynth.World` — **implementiert seit Phase 2A** (Grid-/Terrain-Fundament: `WorldGrid`, `GridMeshBuilder`, `IWorldHeightSource`/`UnityTerrainHeightSource`, `IslandHeightmapGenerator`, `WorldPointer`); Bauplatzierung/Region-/Weltwechsel/Streaming-Koordination weiterhin offen für spätere Pakete. Referenziert nur `Varynth.Core.Definitions`.
+- `Varynth.Presentation` — **implementiert seit Phase 2A** (Strategiekamera, Debug-Grid-Darstellung, Grid-Cell-Highlight, Welt-Interaktion/Input); Instancing/LOD/VFX weiterhin offen. Referenziert `Varynth.World`, `Varynth.Core.Definitions`, `Unity.InputSystem`; liest Simulationszustand read-only (in Phase 2A: noch keine Simulation-Referenz, da keine Simulationsdaten anzuzeigen sind).
 - `Varynth.UI` — UI Toolkit-basierte Oberfläche, eigene Assembly getrennt von `Presentation`, damit UI-Iteration nicht die 3D-Präsentationsschicht neu kompiliert.
 - `Varynth.Audio` — Musik-/SFX-/Voice-System, adaptive Zustände, Streaming.
 - `Varynth.Narrative` — Quest-/Story-Engine, liest Simulation über definierte Schnittstellen, besitzt keine eigene Parallelwirtschaft.
 - `Varynth.Persistence` — Save/Load, Versionierung, Migration, Profile-Save getrennt von Spielstand-Saves (siehe §6).
 - `Varynth.Modding` — Mod-Ladeorder, Namespace-Konfliktprüfung, Content-Registry-Integration.
-- `Varynth.Tooling.Editor` (Editor-only) — Blender-Pipeline-Integration, Validierungs-Tools, Asset-Import-Automatisierung.
-- `Varynth.Tests.EditMode` / `Varynth.Tests.PlayMode` — Testassemblies je Zielebene.
+- `Varynth.Tooling.Editor` (Editor-only) — **teilweise implementiert seit Phase 2A** (`WorldPrototypeSceneBuilder`, `Version0_1_0Build` unter `WorldPrototype/`); Blender-Pipeline-Integration folgt in einem späteren Paket.
+- `Varynth.Tests.EditMode` / `Varynth.Tests.PlayMode` — Testassemblies je Zielebene; `Varynth.Tests.PlayMode` seit Phase 2A vorhanden.
 
 Diese Aufteilung ist eine Arbeitsfassung; feinere Untergliederung (z. B. separate Assemblies je Systembereich innerhalb `Core.Simulation`) erfolgt bei Bedarf paketweise.
 

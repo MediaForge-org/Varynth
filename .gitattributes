@@ -27,3 +27,12 @@
 
 # Unity-generated metadata may contain trailing spaces in empty YAML values
 *.meta -whitespace
+
+# Unity-generated serialized YAML may contain trailing spaces in empty values
+*.unity -whitespace
+*.mat -whitespace
+*.asset -whitespace
+*.terrainlayer -whitespace
+
+# Binary Unity terrain data
+*TerrainData.asset filter=lfs diff=lfs merge=lfs -text

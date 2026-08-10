@@ -1,0 +1,16 @@
+{
+    "name": "Varynth.World",
+    "rootNamespace": "Varynth.World",
+    "references": [
+        "Varynth.Core.Definitions"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

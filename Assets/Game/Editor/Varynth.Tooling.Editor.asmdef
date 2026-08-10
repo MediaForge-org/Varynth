@@ -1,24 +1,20 @@
 {
-    "name": "Varynth.Tests.EditMode",
-    "rootNamespace": "Varynth.Tests.EditMode",
+    "name": "Varynth.Tooling.Editor",
+    "rootNamespace": "Varynth.Tooling.Editor",
     "references": [
         "Varynth.Core.Definitions",
-        "Varynth.Data",
-        "Varynth.Core.Simulation",
         "Varynth.World",
         "Varynth.Presentation",
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "includePlatforms": [
         "Editor"
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": true,
-    "precompiledReferences": [
-        "nunit.framework.dll"
-    ],
+    "overrideReferences": false,
+    "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
