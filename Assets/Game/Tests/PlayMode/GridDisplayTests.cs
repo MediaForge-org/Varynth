@@ -11,14 +11,25 @@ namespace Varynth.Tests.PlayMode
     {
         private const string SceneName = "WorldPrototype";
 
+        // Phase 2B reuses GridDisplay for the surface-overlay categories too (hidden by
+        // default), so FindFirstObjectByType<GridDisplay>() is no longer specific enough --
+        // tests about "the" debug grid must target the "Grid" root by name.
+        private static GridDisplay FindGridDisplay()
+        {
+            var gridGo = GameObject.Find("Grid");
+            Assert.IsNotNull(gridGo, "Expected a 'Grid' root GameObject.");
+            var display = gridGo.GetComponent<GridDisplay>();
+            Assert.IsNotNull(display, "Expected the 'Grid' root to carry a GridDisplay component.");
+            return display;
+        }
+
         [UnityTest]
         public IEnumerator GridRoot_DoesNotUseOneGameObjectPerCell()
         {
             yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
             yield return null;
 
-            var gridDisplay = Object.FindFirstObjectByType<GridDisplay>();
-            Assert.IsNotNull(gridDisplay);
+            var gridDisplay = FindGridDisplay();
 
             var gridRoot = gridDisplay.gameObject;
             Assert.Less(gridRoot.transform.childCount, 10, "Grid root should not contain one GameObject per cell/line.");
@@ -40,8 +51,7 @@ namespace Varynth.Tests.PlayMode
             yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
             yield return null;
 
-            var gridDisplay = Object.FindFirstObjectByType<GridDisplay>();
-            Assert.IsNotNull(gridDisplay);
+            var gridDisplay = FindGridDisplay();
             var meshRenderer = gridDisplay.GetComponent<MeshRenderer>();
             Assert.IsNotNull(meshRenderer);
 
@@ -53,6 +63,23 @@ namespace Varynth.Tests.PlayMode
 
             gridDisplay.SetVisible(true);
             Assert.IsTrue(meshRenderer.enabled);
+        }
+
+        [UnityTest]
+        public IEnumerator SurfaceOverlayDisplays_AreHiddenByDefault()
+        {
+            yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
+            yield return null;
+
+            foreach (var name in new[] { "Buildable", "Coast", "RockOrSteep" })
+            {
+                var go = GameObject.Find(name);
+                Assert.IsNotNull(go, $"Expected a surface overlay category GameObject named '{name}'.");
+                var display = go.GetComponent<GridDisplay>();
+                Assert.IsNotNull(display);
+                var renderer = go.GetComponent<MeshRenderer>();
+                Assert.IsFalse(renderer.enabled, $"Expected '{name}' overlay to be hidden by default (toggled via F2).");
+            }
         }
     }
 }

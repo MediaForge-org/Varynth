@@ -35,7 +35,7 @@ Assembly-Definitionsdateien (`.asmdef`) trennen Domänen, um zyklische Abhängig
 - `Varynth.Core.Definitions` — Definitionsdatentypen, ID-/Namespace-Primitiven (`ContentId`, `ContentSourceId`, `LocalizationKey`), generische `ContentRegistry<T>`, `ContentReference<T>`, keine Unity-Engine-Abhängigkeit (`noEngineReferences: true`).
 - `Varynth.Data` — datengetriebene Lade-Pipeline: XML-Parsing (gehärtet, kein DTD/keine externen Entities), Content-Source-/Mod-Manifest-Abstraktion, deterministische Ladeorder, Definition-Loader, Validierungs-/Report-Mechanismus (Phase 1B). Referenziert `Varynth.Core.Definitions`, `noEngineReferences: true`. Wird nur beim Content-Laden gebraucht, nicht von `Varynth.Core.Simulation`/`Presentation` zur Laufzeit referenziert.
 - `Varynth.Core.Simulation` — Wirtschaftssimulation, Bevölkerung, Produktion, Logistik, Forschung, Diplomatie/KI, Utilities, Disasters, Expeditionen; Engine-unabhängig, wo möglich reines C#. Fundament seit Phase 1C: `GameClock`/`GameTick` (deterministischer Tick-Zähler, keine Wall-Clock-/FPS-Kopplung), `SimulationScheduler`/`ISimulationSystem` (deterministische Systemreihenfolge), `SimulationContext`/`SimulationLevel`/`SimulationLevelMask` (ActiveNear/ActiveFar/Background), `PlayerId`/`ISimulationCommand` (Multiplayer-Future-Proofing, siehe unten). Referenziert nur `Varynth.Core.Definitions` (für Diagnostics), `noEngineReferences: true`.
-- `Varynth.World` — **implementiert seit Phase 2A** (Grid-/Terrain-Fundament: `WorldGrid`, `GridMeshBuilder`, `IWorldHeightSource`/`UnityTerrainHeightSource`, `IslandHeightmapGenerator`, `WorldPointer`); Bauplatzierung/Region-/Weltwechsel/Streaming-Koordination weiterhin offen für spätere Pakete. Referenziert nur `Varynth.Core.Definitions`.
+- `Varynth.World` — **implementiert seit Phase 2A** (Grid-/Terrain-Fundament: `WorldGrid`, `GridMeshBuilder`, `IWorldHeightSource`/`UnityTerrainHeightSource`, `IslandHeightmapGenerator`, `WorldPointer`); **erweitert seit Phase 2B** um Multi-Insel-Unterstützung (`CompositeWorldHeightSource`, `WorldPointer` über mehrere registrierte Collider) und eine kompakte Surface-Classification-Grundlage (`Varynth.World.Surface`: `SurfaceCellFlags`, `IslandSurfaceMap`, `SlopeEstimator`, `SurfaceMapGenerator`, `ResourceCandidateGenerator`, `VegetationCandidateGenerator`). Bauplatzierung/Region-/Weltwechsel/Streaming-Koordination weiterhin offen für spätere Pakete. Referenziert nur `Varynth.Core.Definitions`.
 - `Varynth.Presentation` — **implementiert seit Phase 2A** (Strategiekamera, Debug-Grid-Darstellung, Grid-Cell-Highlight, Welt-Interaktion/Input); Instancing/LOD/VFX weiterhin offen. Referenziert `Varynth.World`, `Varynth.Core.Definitions`, `Unity.InputSystem`; liest Simulationszustand read-only (in Phase 2A: noch keine Simulation-Referenz, da keine Simulationsdaten anzuzeigen sind).
 - `Varynth.UI` — UI Toolkit-basierte Oberfläche, eigene Assembly getrennt von `Presentation`, damit UI-Iteration nicht die 3D-Präsentationsschicht neu kompiliert.
 - `Varynth.Audio` — Musik-/SFX-/Voice-System, adaptive Zustände, Streaming.
@@ -111,6 +111,31 @@ Seit Phase 1C verbindlich festgelegt:
 - **Späterer Besitz muss explizit modellierbar sein** (Gebäude, Schiffe, Inseln, Städte, Expeditionen tragen künftig eine `PlayerId`/`OwnerId`) — Phase 1C implementiert kein Ownership-Gameplay, aber `PlayerId` existiert bereits als wiederverwendbarer Baustein dafür.
 - **Keine Networking-Implementierung jetzt**: keine Steamworks-Abhängigkeit, keine Lobby, keine Netzwerkpakete, kein P2P/Relay/RPC, kein Netcode for GameObjects/Mirror/FishNet/Photon, keine eigenen Server, keine Synchronisationslogik. Dies ist ausschließlich Future-Proofing der Architektur, kein Multiplayer-Feature.
 
-## 9. Nicht Teil dieser Fassung
+## 9. Kamera-/Navigations-Skalierung (verbindlich seit Phase 2B, siehe `.claude/rules/05-camera-navigation-scaling.md`)
+
+Grund: derselbe Geschwindigkeitsfehler (Pan/Zoom fühlen sich bei größeren Karten wieder
+zu langsam an) wurde bei Varynth 0.1.1 zweimal manuell gemeldet, weil Pan-Geschwindigkeit
+und Zoom-Schrittweite ursprünglich als feste absolute Konstanten (Units/Sekunde,
+Units/Scroll-Notch) implementiert waren — das funktioniert nur für die eine Kartengröße,
+gegen die die Konstante zuletzt getunt wurde.
+
+- Pan-Geschwindigkeit und Zoom-Schrittweite sind **verbindlich als Funktion der aktuellen
+  Kameradistanz/des aktuellen Zoomlevels** auszudrücken, nicht als feste Konstante — siehe
+  `Varynth.Presentation.Camera.CameraRigMath.ComputePanSpeed`/`ComputeZoomTarget` (pure,
+  testbare Funktionen) als Referenzimplementierung seit Phase 2B.
+- Zoom ist multiplikativ/prozentual (`distance *= (1 - percent)^scrollDelta`), nicht additiv
+  mit fixer Schrittweite, damit derselbe Scroll-Input weit draußen einen großen und nah am
+  Terrain einen kleinen, präzisen Distanzsprung erzeugt — ohne Kenntnis der konkreten
+  Kartengröße.
+- Scroll-Rohinput wird nicht mit `Time.deltaTime` multipliziert (Input-Delta, keine Rate);
+  visuelles Smoothing bleibt frame-rate-unabhängig.
+- Min-/Max-Zoom- und Pan-Bounds-Clamping bleiben in jeder Implementierung erhalten.
+- Regressionstests für diese Skalierung dürfen nicht an der konkreten aktuellen
+  Kartengröße hängen, sondern müssen die Skalierungsgesetzmäßigkeit selbst prüfen (z. B.
+  "gleicher Scroll-Input bei größerer aktueller Distanz erzeugt größere absolute
+  Distanzänderung"), damit spätere, um Größenordnungen größere Karten nicht denselben
+  Fehler erneut manuell aufdecken müssen.
+
+## 10. Nicht Teil dieser Fassung
 
 Keine konkreten Klassennamen/APIs, keine Tickraten-Werte, keine Engine-Detailimplementierung (z. B. konkrete Addressables-Gruppen-Konfiguration), keine Balancing-Werte. Diese folgen in den jeweiligen späteren Implementierungspaketen unter Bezug auf dieses Dokument.

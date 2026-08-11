@@ -7,6 +7,7 @@
         "Varynth.Core.Simulation",
         "Varynth.World",
         "Varynth.Presentation",
+        "Varynth.Tooling.Editor",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

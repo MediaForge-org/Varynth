@@ -72,3 +72,47 @@ dokumentiert gemäß `.claude/rules/01-spec-authority.md`:
   kein `UnityEngine.Random`).
 
 Details siehe `Docs/04_IMPLEMENTATION/PHASE_2A_WORLD_CAMERA_FOUNDATION.md`.
+
+## Phase 2B Prototypwerte (Varynth 0.1.1, nicht kanonisch)
+
+Erweitert die einzelne 0.1.0-Testinsel um ein kleines Testarchipel. Weiterhin keine
+verbindliche Spezifikation für Inselgrößenklassen, Strandbreite, bebaubaren Steigungs-
+Schwellwert oder Ressourcenplatz-Abstand gefunden (`MEGA_PROMPT` liefert nur die narrative
+"~10–15 Inseln/Region" und die verbindliche, aber nicht-räumliche "0–15 Minenplätze/Insel"-
+Zahl) — folgende Werte bleiben technische Prototypwerte:
+
+- 4 Prototype-Inseln (`TestIsland_Large/Medium/Small/Coastal`), Footprints 110×110 bis
+  260×260 Units, Seed-Familie `20260809 + Index`. Namen sind Debug-Labels, keine
+  Savegame-IDs/Occidentia-Lore.
+- Sea-Level-Konvention aus Phase 2A unverändert für jede Insel: `TerrainData.size.y = 40`,
+  Terrain-`Transform.position.y = -15`, Sea Level = normalisierte Höhe 0.375.
+- `SurfaceClassificationConfig`: `CoastBandHeight = 3` Units über Sea Level, gemeinsamer
+  `SlopeThresholdDegrees = 30°` für `RockOrSteep`/`Buildable`.
+- Ressourcenplatz-Kandidaten: 2–5 pro Insel (abhängig von Inselgröße), Mindestabstand
+  6 Zellen, deterministisch aus Insel-Seed + festem Salt (kein `UnityEngine.Random`).
+
+Details siehe `Docs/04_IMPLEMENTATION/PHASE_2B_ISLAND_TERRAIN_FOUNDATION.md`.
+
+## Phase 2B Bugfix-Runde: Kamera-Framing, Underwater-Terrain, Pan-/Zoom-Skalierung (Varynth 0.1.1)
+
+Technische Prototype-UX-Schwellwerte, keine finalen Balancing-Werte:
+
+- Initiales Kamera-Framing (`ComputeCameraFraming` in `WorldPrototypeSceneBuilder`) wird
+  aus der Bounding-Box der tatsächlich über Sea Level liegenden Surface-Zellen berechnet
+  (nicht aus der vollen, das Unterwasser-"Skirt" jeder Terrain-Kachel einschließenden
+  Footprint-Bounding-Box) — `ArchipelagoFramingMargin = 1.15`.
+- Terrain-Alphamap: 4. Layer "Seabed" (dunkles Blaugrau) für Zellen unterhalb Sea Level,
+  verhindert helle Sand-Rechtecke unter der halbtransparenten Wasserfläche.
+- Wasserfläche-Rand: dynamische Marge `CameraBoundsMargin + ZoomMaxDistance + WaterMargin(60)`,
+  garantiert, dass die Wasserkante bei erlaubtem Pan+Zoom nie sichtbar wird.
+- Pan-Geschwindigkeit skaliert mit der aktuellen Zoomdistanz (`PanSpeedPerZoomDistance = 0.6`,
+  `MinPanSpeed = 25`) statt eines festen Wert/Sekunde-Konstanten — verhindert, dass Panning
+  bei großen Welten (großer Zoom-Range) gefühlt wirkungslos wird.
+- Zoom ist prozentual/multiplikativ (`ZoomPercentPerNotch = 0.2`), nicht additiv mit fixer
+  Schrittweite — ein Mausrad-Notch ändert die Distanz um ~20%, unabhängig vom absoluten
+  Zoom-Bereich. Kalibriert unter der Annahme `Mouse.scroll.y ≈ 1 Einheit/Notch` (konsistent
+  mit dem zuvor gemeldeten "dutzende Notches nötig"-Symptom beim alten
+  `ZoomSensitivity = 8`/Notch-Wert über einen ~105-Einheiten-Bereich); finale Gefühlskontrolle
+  bleibt beim Nutzer.
+
+Details siehe `Docs/04_IMPLEMENTATION/PHASE_2B_ISLAND_TERRAIN_FOUNDATION.md`.

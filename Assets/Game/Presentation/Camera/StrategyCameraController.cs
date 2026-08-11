@@ -27,7 +27,10 @@ namespace Varynth.Presentation.Camera
         private void Awake()
         {
             _positionXZ = new Vector2(transform.position.x, transform.position.z);
-            _zoomDistance = _config.ZoomMinDistance + (_config.ZoomMaxDistance - _config.ZoomMinDistance) * 0.5f;
+            var initialDistance = _config.InitialZoomDistance > 0f
+                ? _config.InitialZoomDistance
+                : _config.ZoomMinDistance + (_config.ZoomMaxDistance - _config.ZoomMinDistance) * 0.5f;
+            _zoomDistance = CameraRigMath.ClampZoom(initialDistance, _config);
             _zoomTarget = _zoomDistance;
         }
 
@@ -67,7 +70,7 @@ namespace Varynth.Presentation.Camera
                 return;
             }
 
-            var speed = _config.PanSpeed * (keyboard.leftShiftKey.isPressed ? _config.FastPanMultiplier : 1f);
+            var speed = CameraRigMath.ComputePanSpeed(_zoomDistance, _config, keyboard.leftShiftKey.isPressed);
 
             var yawRad = _yawDegrees * Mathf.Deg2Rad;
             var forwardDir = new Vector2(Mathf.Sin(yawRad), Mathf.Cos(yawRad));
@@ -100,16 +103,13 @@ namespace Varynth.Presentation.Camera
             }
 
             // Scroll is an input delta, not a rate -- never multiplied by deltaTime here.
-            // Applied directly (no extra hidden attenuation factor) so ZoomSensitivity in the
-            // Inspector is the whole story; fast scrolling within one frame accumulates
-            // naturally since scrollDelta already reflects everything read since last frame.
-            _zoomTarget = CameraRigMath.ClampZoom(_zoomTarget - scrollDelta * _config.ZoomSensitivity, _config);
+            // Percentage-based, not a fixed absolute amount -- see CameraRigConfig.ZoomPercentPerNotch.
+            _zoomTarget = CameraRigMath.ComputeZoomTarget(_zoomTarget, scrollDelta, _config);
         }
 
         private void ApplyZoomSmoothing(float deltaTime)
         {
-            var t = 1f - Mathf.Exp(-_config.ZoomSmoothSpeed * deltaTime);
-            _zoomDistance = Mathf.Lerp(_zoomDistance, _zoomTarget, t);
+            _zoomDistance = CameraRigMath.SmoothZoom(_zoomDistance, _zoomTarget, _config.ZoomSmoothSpeed, deltaTime);
         }
 
         private void ApplyTransforms()

@@ -99,7 +99,12 @@ namespace Varynth.World.Terrain
             return Lerp(ix0, ix1, sy);
         }
 
-        private static float Hash(int x, int y, int seed)
+        /// <summary>
+        /// Deterministic 0..1 hash, reused by ResourceCandidateGenerator/
+        /// VegetationCandidateGenerator for seed-based candidate selection so the
+        /// project has one hash implementation, not three near-duplicates.
+        /// </summary>
+        internal static float Hash(int x, int y, int seed)
         {
             unchecked
             {

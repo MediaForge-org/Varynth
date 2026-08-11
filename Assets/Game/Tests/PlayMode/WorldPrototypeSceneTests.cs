@@ -27,12 +27,20 @@ namespace Varynth.Tests.PlayMode
             Assert.IsNotNull(Object.FindFirstObjectByType<StrategyCameraController>(), "StrategyCameraController missing");
             Assert.IsNotNull(Object.FindFirstObjectByType<WorldInteractionController>(), "WorldInteractionController missing");
 
-            var terrain = Object.FindFirstObjectByType<UnityEngine.Terrain>();
-            Assert.IsNotNull(terrain, "Terrain (TestIsland) missing");
-            Assert.IsNotNull(terrain.terrainData, "TestIsland has no TerrainData assigned");
+            var terrains = Object.FindObjectsByType<UnityEngine.Terrain>(FindObjectsSortMode.None);
+            Assert.GreaterOrEqual(terrains.Length, 2, "Expected multiple island Terrain objects, not a single mega-terrain.");
+            foreach (var terrain in terrains)
+            {
+                Assert.IsNotNull(terrain.terrainData, $"{terrain.name} has no TerrainData assigned");
+                Assert.IsNotNull(terrain.GetComponent<TerrainCollider>(), $"{terrain.name} has no TerrainCollider");
+            }
 
-            Assert.IsNotNull(Object.FindFirstObjectByType<GridDisplay>(), "GridDisplay missing");
+            // Grid overlay (1) + Buildable/Coast/RockOrSteep surface overlays (3).
+            var gridDisplays = Object.FindObjectsByType<GridDisplay>(FindObjectsSortMode.None);
+            Assert.GreaterOrEqual(gridDisplays.Length, 4, "Expected the debug grid plus 3 surface-overlay categories.");
+
             Assert.IsNotNull(Object.FindFirstObjectByType<GridCellHighlight>(), "GridCellHighlight missing");
+            Assert.IsNotNull(Object.FindFirstObjectByType<ResourceCandidateMarkers>(), "ResourceCandidateMarkers missing");
             Assert.IsNotNull(GameObject.Find("Water"), "Water GameObject missing");
         }
 
