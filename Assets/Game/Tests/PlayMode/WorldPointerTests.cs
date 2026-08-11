@@ -14,14 +14,17 @@ namespace Varynth.Tests.PlayMode
         private const string SceneName = "WorldPrototype";
 
         // Matches WorldPrototypeIslands.GetDefaultConfigs(): TestIsland_Large is
-        // centered at world (0,0) with a 260x260 footprint.
+        // centered at world (0,0) with a 440x440 footprint (enlarged for the Phase 2C
+        // building-placement sandbox).
         private static readonly Vector3 IslandLargeAbovePoint = new Vector3(0f, 200f, 0f);
 
         // TestIsland_Medium is centered at world (520,40) with a 170x170 footprint.
         private static readonly Vector3 IslandMediumAbovePoint = new Vector3(520f, 200f, 40f);
 
-        // Clearly outside every configured island's footprint -- open ocean.
-        private static readonly Vector3 OpenWaterAbovePoint = new Vector3(250f, 200f, 250f);
+        // Outside every configured island's footprint -- open ocean. TestIsland_Large's
+        // AABB now reaches +/-220 on each axis, so this point (previously (250,250))
+        // is pushed further out to stay clear of it with margin.
+        private static readonly Vector3 OpenWaterAbovePoint = new Vector3(320f, 200f, 320f);
 
         private static List<Collider> FindAllTerrainColliders()
         {

@@ -35,6 +35,42 @@ namespace Varynth.World.Surface
             _flags = new SurfaceCellFlags[width * height];
         }
 
+        private IslandSurfaceMap(GridCoordinate originCell, int width, int height, SurfaceCellFlags[] flags)
+        {
+            OriginCell = originCell;
+            Width = width;
+            Height = height;
+            _flags = flags;
+        }
+
+        /// <summary>
+        /// Wraps an already-classified flags array directly -- a cheap array copy, not
+        /// a recompute. Used to reconstruct a runtime IslandSurfaceMap from a serialized
+        /// IslandSurfaceRuntimeData asset without re-running SurfaceMapGenerator at
+        /// every game start.
+        /// </summary>
+        public static IslandSurfaceMap FromRawFlags(GridCoordinate originCell, int width, int height, SurfaceCellFlags[] flags)
+        {
+            if (width <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(width), width, "Width must be positive.");
+            }
+
+            if (height <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(height), height, "Height must be positive.");
+            }
+
+            if (flags == null || flags.Length != width * height)
+            {
+                throw new ArgumentException($"Expected a flags array of length {width * height}, got {flags?.Length ?? 0}.", nameof(flags));
+            }
+
+            var copy = new SurfaceCellFlags[flags.Length];
+            System.Array.Copy(flags, copy, flags.Length);
+            return new IslandSurfaceMap(originCell, width, height, copy);
+        }
+
         public bool TryGetFlags(GridCoordinate cell, out SurfaceCellFlags flags)
         {
             if (!TryGetIndex(cell, out var index))

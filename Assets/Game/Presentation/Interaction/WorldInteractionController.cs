@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Varynth.Core.Common;
 using Varynth.Presentation.Visualization;
 using Varynth.World.Grid;
 using Varynth.World.Interaction;
@@ -43,6 +44,16 @@ namespace Varynth.Presentation.Interaction
         private bool _resourceOverlayVisible;
 
         public WorldGrid Grid => _grid;
+        public IWorldHeightSource HeightSource => _heightSource;
+        public WorldPointer Pointer => _pointer;
+        public UnityEngine.Terrain[] Terrains => _terrains;
+
+        /// <summary>
+        /// The grid cell currently under the cursor, if any -- computed once per
+        /// frame in UpdateHover(). Other Presentation components (PlacementController)
+        /// read this instead of re-raycasting, avoiding duplicate WorldPointer setup.
+        /// </summary>
+        public GridCoordinate? HoveredCell { get; private set; }
 
         private void Awake()
         {
@@ -96,10 +107,12 @@ namespace Varynth.Presentation.Interaction
             if (_pointer.TryRaycast(ray, out var worldPosition))
             {
                 var cell = _pointer.ToCell(worldPosition);
+                HoveredCell = cell;
                 _highlight.SetCell(cell, _grid, _heightSource);
             }
             else
             {
+                HoveredCell = null;
                 _highlight.Hide();
             }
         }

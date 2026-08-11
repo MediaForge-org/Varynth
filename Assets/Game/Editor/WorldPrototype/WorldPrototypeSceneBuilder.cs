@@ -6,11 +6,16 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
+using UnityEngine.UI;
 using Varynth.Core.Common;
 using Varynth.Presentation.Camera;
 using Varynth.Presentation.Interaction;
+using Varynth.Presentation.Placement;
 using Varynth.Presentation.Visualization;
 using Varynth.World.Grid;
+using Varynth.World.Placement;
 using Varynth.World.Surface;
 using Varynth.World.Terrain;
 
@@ -58,6 +63,17 @@ namespace Varynth.Tooling.Editor.WorldPrototype
         private const string RockOverlayMaterialPath = "Assets/Game/World/Art/Materials/SurfaceOverlay_RockOrSteep.mat";
         private const string ResourceMarkerMaterialPath = "Assets/Game/World/Art/Materials/ResourceCandidateMarker.mat";
 
+        private const string PlacementArtDirectory = "Assets/Game/World/Art/Placement";
+        private const string PlacementGridMaterialPath = "Assets/Game/World/Art/Materials/PlacementGrid.mat";
+        private const string GhostFootprintValidMaterialPath = "Assets/Game/World/Art/Materials/PlacementGhost_FootprintValid.mat";
+        private const string GhostFootprintInvalidMaterialPath = "Assets/Game/World/Art/Materials/PlacementGhost_FootprintInvalid.mat";
+        private const string GhostBuildingValidMaterialPath = "Assets/Game/World/Art/Materials/PlacementGhost_BuildingValid.mat";
+        private const string GhostBuildingInvalidMaterialPath = "Assets/Game/World/Art/Materials/PlacementGhost_BuildingInvalid.mat";
+        private const string PrototypeHouseMaterialPath = "Assets/Game/World/Art/Materials/Prototype_House.mat";
+        private const string PrototypeProductionMaterialPath = "Assets/Game/World/Art/Materials/Prototype_Production.mat";
+        private const string PrototypePublicMaterialPath = "Assets/Game/World/Art/Materials/Prototype_Public.mat";
+        private const float PlacementOverlayHeightOffset = 0.04f;
+
         // Phase 2A/2B prototype values -- not canon design/balancing values.
         private const float TerrainVerticalSize = 40f;
         private const float TerrainTransformY = -15f;
@@ -90,6 +106,7 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             public IslandSurfaceMap SurfaceMap;
             public RectInt CellBounds;
             public IReadOnlyList<ResourceSlotCandidate> ResourceCandidates;
+            public IslandSurfaceRuntimeData RuntimeSurfaceData;
         }
 
         [MenuItem("Varynth/Build World Prototype")]
@@ -135,7 +152,7 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             var cameraRig = FindOrCreateRoot("CameraRig");
             var camera = BuildCamera(cameraRig, archipelagoBounds, initialZoomDistance, zoomMaxDistance);
 
-            BuildInteraction(
+            var worldInteraction = BuildInteraction(
                 cameraRig,
                 camera,
                 islandResults.Select(r => r.Terrain).ToArray(),
@@ -144,6 +161,30 @@ namespace Varynth.Tooling.Editor.WorldPrototype
                 highlight,
                 surfaceDisplays,
                 resourceMarkers);
+
+            var placementGridsRoot = FindOrCreateRoot("PlacementGrids");
+            var placementGrids = BuildPlacementGrids(placementGridsRoot, grid, islandResults);
+
+            var placementAssetsRoot = FindOrCreateRoot("PlacementAssets");
+            var visualCatalog = BuildPrototypeBuildingVisuals(placementAssetsRoot);
+            var ghost = BuildGhost(placementAssetsRoot);
+
+            var placedBuildingsRoot = FindOrCreateRoot("PlacedBuildings");
+
+            var uiRoot = FindOrCreateRoot("UI");
+            var (houseButton, productionButton, publicButton) = BuildPrototypeBuildUI(uiRoot);
+
+            BuildPlacementController(
+                cameraRig,
+                worldInteraction,
+                islandResults,
+                placementGrids,
+                ghost,
+                visualCatalog,
+                placedBuildingsRoot.transform,
+                houseButton,
+                productionButton,
+                publicButton);
 
             AddSceneToBuildSettings(ScenePath);
 
@@ -359,6 +400,7 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             var surfaceMap = SurfaceMapGenerator.Generate(grid, heightSource, cellBounds, surfaceConfig);
             var resourceCandidates = ResourceCandidateGenerator.Generate(
                 surfaceMap, cellBounds, config.Seed, config.MaxResourceCandidates, ResourceMinSpacingCells);
+            var runtimeSurfaceData = BuildIslandSurfaceRuntimeData(config, surfaceMap, cellBounds);
 
             return new IslandBuildResult
             {
@@ -367,8 +409,53 @@ namespace Varynth.Tooling.Editor.WorldPrototype
                 Collider = collider,
                 SurfaceMap = surfaceMap,
                 CellBounds = cellBounds,
-                ResourceCandidates = resourceCandidates
+                ResourceCandidates = resourceCandidates,
+                RuntimeSurfaceData = runtimeSurfaceData
             };
+        }
+
+        // Serialized, GUID-stable runtime data source for placement (adjustment 1):
+        // WorldPrototypeSceneBuilder/IslandSurfaceMap only exist in the Editor-only
+        // Varynth.Tooling.Editor assembly, invisible to a real Play session or Player
+        // build. This copies the already-computed flags array once, at build time --
+        // no re-classification at runtime.
+        private static IslandSurfaceRuntimeData BuildIslandSurfaceRuntimeData(
+            IslandPrototypeConfig config, IslandSurfaceMap surfaceMap, RectInt cellBounds)
+        {
+            Directory.CreateDirectory(PlacementArtDirectory);
+            var path = $"{PlacementArtDirectory}/{config.Name}_SurfaceRuntimeData.asset";
+
+            var data = AssetDatabase.LoadAssetAtPath<IslandSurfaceRuntimeData>(path);
+            var isNew = data == null;
+            if (isNew)
+            {
+                data = ScriptableObject.CreateInstance<IslandSurfaceRuntimeData>();
+            }
+
+            var flags = new byte[cellBounds.width * cellBounds.height];
+            var index = 0;
+            for (var cz = cellBounds.yMin; cz < cellBounds.yMax; cz++)
+            {
+                for (var cx = cellBounds.xMin; cx < cellBounds.xMax; cx++)
+                {
+                    surfaceMap.TryGetFlags(new GridCoordinate(cx, cz), out var cellFlags);
+                    flags[index] = (byte)cellFlags;
+                    index++;
+                }
+            }
+
+            data.SetData(cellBounds.xMin, cellBounds.yMin, cellBounds.width, cellBounds.height, flags);
+
+            if (isNew)
+            {
+                AssetDatabase.CreateAsset(data, path);
+            }
+            else
+            {
+                EditorUtility.SetDirty(data);
+            }
+
+            return data;
         }
 
         private static RectInt WorldToCellBounds(WorldGrid grid, Vector2 origin, Vector2 size)
@@ -971,7 +1058,7 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             return camera;
         }
 
-        private static void BuildInteraction(
+        private static WorldInteractionController BuildInteraction(
             GameObject cameraRig,
             UnityEngine.Camera camera,
             UnityEngine.Terrain[] terrains,
@@ -998,6 +1085,281 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             serialized.FindProperty("_highlight").objectReferenceValue = highlight;
             serialized.FindProperty("_gridDisplay").objectReferenceValue = gridDisplay;
             serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return controller;
+        }
+
+        // -------------------------------------------------------------- Placement
+
+        private static GridDisplay[] BuildPlacementGrids(GameObject placementGridsRoot, WorldGrid grid, List<IslandBuildResult> islands)
+        {
+            // One GridDisplay/mesh per island (adjustment 2), not one global aggregate:
+            // PlacementController shows only the currently-hovered island's grid, so
+            // hovering island A never lights up island B's. Kept per-island-single-mesh
+            // (not per-island-single-GameObject-per-cell) specifically so a future
+            // chunked/streaming mesh generator could later split one island into several
+            // chunk meshes without PlacementController's per-island show/hide logic
+            // needing to change.
+            var displays = new GridDisplay[islands.Count];
+            var material = GetOrCreateMaterial(
+                PlacementGridMaterialPath, new Color(0.35f, 0.85f, 1f, 0.5f), UnlitShaderName, transparent: true);
+
+            for (var i = 0; i < islands.Count; i++)
+            {
+                var island = islands[i];
+                var go = FindOrCreateChild(placementGridsRoot, island.Config.Name);
+                var display = go.GetComponent<GridDisplay>();
+                if (display == null)
+                {
+                    display = go.AddComponent<GridDisplay>();
+                }
+
+                var source = new SurfaceOverlayMeshBuilder.IslandSurfaceSource(
+                    island.SurfaceMap, island.CellBounds, new UnityTerrainHeightSource(island.Terrain));
+                var mesh = SurfaceOverlayMeshBuilder.BuildCategoryMesh(
+                    grid, new[] { source }, SurfaceCellFlags.Buildable, PlacementOverlayHeightOffset);
+                var meshPath = $"{PlacementArtDirectory}/{island.Config.Name}_PlacementGrid.asset";
+                mesh = SaveOrUpdateMeshAsset(mesh, meshPath);
+                display.Initialize(mesh);
+
+                var renderer = go.GetComponent<MeshRenderer>();
+                renderer.sharedMaterial = material;
+                renderer.enabled = false; // hidden by default -- PlacementController shows only the hovered island
+
+                displays[i] = display;
+            }
+
+            return displays;
+        }
+
+        private static PrototypeBuildingVisualCatalog BuildPrototypeBuildingVisuals(GameObject root)
+        {
+            var go = FindOrCreateChild(root, "PrototypeBuildingVisuals");
+            var catalog = go.GetComponent<PrototypeBuildingVisualCatalog>();
+            if (catalog == null)
+            {
+                catalog = go.AddComponent<PrototypeBuildingVisualCatalog>();
+            }
+
+            // Scaled to actual footprint size via transform.localScale at spawn/ghost time
+            // (Presentation) -- one shared unit-cube mesh, distinguished by material color.
+            var cubeMesh = GetOrCreatePrimitiveMesh(PrimitiveType.Cube);
+            var houseMaterial = GetOrCreateMaterial(PrototypeHouseMaterialPath, new Color(0.55f, 0.30f, 0.22f, 1f), LitShaderName, transparent: false);
+            var productionMaterial = GetOrCreateMaterial(PrototypeProductionMaterialPath, new Color(0.40f, 0.48f, 0.55f, 1f), LitShaderName, transparent: false);
+            var publicMaterial = GetOrCreateMaterial(PrototypePublicMaterialPath, new Color(0.85f, 0.80f, 0.65f, 1f), LitShaderName, transparent: false);
+
+            var serialized = new SerializedObject(catalog);
+            var entriesProperty = serialized.FindProperty("_entries");
+            entriesProperty.arraySize = 3;
+            SetVisualEntry(entriesProperty.GetArrayElementAtIndex(0), "house", cubeMesh, houseMaterial);
+            SetVisualEntry(entriesProperty.GetArrayElementAtIndex(1), "production", cubeMesh, productionMaterial);
+            SetVisualEntry(entriesProperty.GetArrayElementAtIndex(2), "public", cubeMesh, publicMaterial);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return catalog;
+        }
+
+        private static void SetVisualEntry(SerializedProperty entryProperty, string visualId, Mesh mesh, Material material)
+        {
+            entryProperty.FindPropertyRelative("VisualId").stringValue = visualId;
+            entryProperty.FindPropertyRelative("Mesh").objectReferenceValue = mesh;
+            entryProperty.FindPropertyRelative("Material").objectReferenceValue = material;
+        }
+
+        private static PlacementGhostDisplay BuildGhost(GameObject root)
+        {
+            var go = FindOrCreateChild(root, "Ghost");
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = Vector3.one;
+
+            var meshFilter = go.GetComponent<MeshFilter>();
+            if (meshFilter == null)
+            {
+                meshFilter = go.AddComponent<MeshFilter>();
+            }
+
+            var meshRenderer = go.GetComponent<MeshRenderer>();
+            if (meshRenderer == null)
+            {
+                meshRenderer = go.AddComponent<MeshRenderer>();
+            }
+            meshRenderer.enabled = false;
+
+            var previewGo = FindOrCreateChild(go, "BuildingPreview");
+            var previewMeshFilter = previewGo.GetComponent<MeshFilter>();
+            if (previewMeshFilter == null)
+            {
+                previewMeshFilter = previewGo.AddComponent<MeshFilter>();
+            }
+
+            var previewMeshRenderer = previewGo.GetComponent<MeshRenderer>();
+            if (previewMeshRenderer == null)
+            {
+                previewMeshRenderer = previewGo.AddComponent<MeshRenderer>();
+            }
+            previewMeshRenderer.enabled = false;
+
+            var ghost = go.GetComponent<PlacementGhostDisplay>();
+            if (ghost == null)
+            {
+                ghost = go.AddComponent<PlacementGhostDisplay>();
+            }
+
+            var footprintValidMaterial = GetOrCreateMaterial(GhostFootprintValidMaterialPath, new Color(0.25f, 0.90f, 0.35f, 0.55f), UnlitShaderName, transparent: true);
+            var footprintInvalidMaterial = GetOrCreateMaterial(GhostFootprintInvalidMaterialPath, new Color(0.90f, 0.20f, 0.20f, 0.55f), UnlitShaderName, transparent: true);
+            var buildingValidMaterial = GetOrCreateMaterial(GhostBuildingValidMaterialPath, new Color(0.40f, 1.00f, 0.50f, 0.50f), LitShaderName, transparent: true);
+            var buildingInvalidMaterial = GetOrCreateMaterial(GhostBuildingInvalidMaterialPath, new Color(1.00f, 0.30f, 0.30f, 0.50f), LitShaderName, transparent: true);
+
+            var serialized = new SerializedObject(ghost);
+            serialized.FindProperty("_footprintValidMaterial").objectReferenceValue = footprintValidMaterial;
+            serialized.FindProperty("_footprintInvalidMaterial").objectReferenceValue = footprintInvalidMaterial;
+            serialized.FindProperty("_buildingPreviewTransform").objectReferenceValue = previewGo.transform;
+            serialized.FindProperty("_buildingPreviewMeshFilter").objectReferenceValue = previewMeshFilter;
+            serialized.FindProperty("_buildingPreviewMeshRenderer").objectReferenceValue = previewMeshRenderer;
+            serialized.FindProperty("_buildingValidMaterial").objectReferenceValue = buildingValidMaterial;
+            serialized.FindProperty("_buildingInvalidMaterial").objectReferenceValue = buildingInvalidMaterial;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return ghost;
+        }
+
+        private static (Button House, Button Production, Button Public) BuildPrototypeBuildUI(GameObject uiRoot)
+        {
+            // UI Buttons need an EventSystem + an Input-System-aware input module to
+            // receive clicks under this project's exclusively-new-Input-System setup
+            // (the legacy StandaloneInputModule depends on the old Input Manager).
+            var eventSystemGo = FindOrCreateRoot("EventSystem");
+            if (eventSystemGo.GetComponent<EventSystem>() == null)
+            {
+                eventSystemGo.AddComponent<EventSystem>();
+            }
+
+            if (eventSystemGo.GetComponent<InputSystemUIInputModule>() == null)
+            {
+                eventSystemGo.AddComponent<InputSystemUIInputModule>();
+            }
+
+            var canvasGo = FindOrCreateChild(uiRoot, "BuildBarCanvas");
+            var canvas = canvasGo.GetComponent<Canvas>();
+            if (canvas == null)
+            {
+                canvas = canvasGo.AddComponent<Canvas>();
+            }
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+            if (canvasGo.GetComponent<CanvasScaler>() == null)
+            {
+                canvasGo.AddComponent<CanvasScaler>();
+            }
+
+            if (canvasGo.GetComponent<GraphicRaycaster>() == null)
+            {
+                canvasGo.AddComponent<GraphicRaycaster>();
+            }
+
+            var barGo = FindOrCreateChild(canvasGo, "BuildBar");
+            var barRect = barGo.GetComponent<RectTransform>();
+            if (barRect == null)
+            {
+                barRect = barGo.AddComponent<RectTransform>();
+            }
+            barRect.anchorMin = new Vector2(0.5f, 0f);
+            barRect.anchorMax = new Vector2(0.5f, 0f);
+            barRect.pivot = new Vector2(0.5f, 0f);
+            barRect.anchoredPosition = new Vector2(0f, 20f);
+            barRect.sizeDelta = new Vector2(460f, 60f);
+
+            var houseButton = BuildBuildButton(barGo, "HouseButton", "1: House", new Vector2(-150f, 0f));
+            var productionButton = BuildBuildButton(barGo, "ProductionButton", "2: Production", new Vector2(0f, 0f));
+            var publicButton = BuildBuildButton(barGo, "PublicButton", "3: Public", new Vector2(150f, 0f));
+
+            return (houseButton, productionButton, publicButton);
+        }
+
+        private static Button BuildBuildButton(GameObject parent, string name, string label, Vector2 anchoredPosition)
+        {
+            var go = FindOrCreateChild(parent, name);
+            var rect = go.GetComponent<RectTransform>();
+            if (rect == null)
+            {
+                rect = go.AddComponent<RectTransform>();
+            }
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = new Vector2(140f, 50f);
+
+            var image = go.GetComponent<Image>();
+            if (image == null)
+            {
+                image = go.AddComponent<Image>();
+            }
+            image.color = new Color(0.15f, 0.15f, 0.18f, 0.9f);
+
+            var button = go.GetComponent<Button>();
+            if (button == null)
+            {
+                button = go.AddComponent<Button>();
+            }
+
+            var textGo = FindOrCreateChild(go, "Label");
+            var textRect = textGo.GetComponent<RectTransform>();
+            if (textRect == null)
+            {
+                textRect = textGo.AddComponent<RectTransform>();
+            }
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+
+            var text = textGo.GetComponent<Text>();
+            if (text == null)
+            {
+                text = textGo.AddComponent<Text>();
+            }
+            text.text = label;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.color = Color.white;
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 16;
+
+            return button;
+        }
+
+        private static PlacementController BuildPlacementController(
+            GameObject cameraRig,
+            WorldInteractionController worldInteraction,
+            List<IslandBuildResult> islands,
+            GridDisplay[] placementGrids,
+            PlacementGhostDisplay ghost,
+            PrototypeBuildingVisualCatalog visualCatalog,
+            Transform placedBuildingsRoot,
+            Button houseButton,
+            Button productionButton,
+            Button publicButton)
+        {
+            var controller = cameraRig.GetComponent<PlacementController>();
+            if (controller == null)
+            {
+                controller = cameraRig.AddComponent<PlacementController>();
+            }
+
+            var serialized = new SerializedObject(controller);
+            serialized.FindProperty("_worldInteraction").objectReferenceValue = worldInteraction;
+            SetObjectArray(serialized, "_islandSurfaceData", islands.Select(i => (Object)i.RuntimeSurfaceData).ToArray());
+            SetObjectArray(serialized, "_placementGrids", placementGrids);
+            serialized.FindProperty("_ghost").objectReferenceValue = ghost;
+            serialized.FindProperty("_visualCatalog").objectReferenceValue = visualCatalog;
+            serialized.FindProperty("_placedBuildingsRoot").objectReferenceValue = placedBuildingsRoot;
+            serialized.FindProperty("_houseButton").objectReferenceValue = houseButton;
+            serialized.FindProperty("_productionBlockButton").objectReferenceValue = productionButton;
+            serialized.FindProperty("_publicBuildingButton").objectReferenceValue = publicButton;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return controller;
         }
 
         private static void SetObjectArray(SerializedObject serialized, string propertyName, Object[] values)

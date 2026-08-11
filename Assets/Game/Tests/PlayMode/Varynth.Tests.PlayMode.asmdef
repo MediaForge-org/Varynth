@@ -3,8 +3,13 @@
     "rootNamespace": "Varynth.Tests.PlayMode",
     "references": [
         "Varynth.Core.Definitions",
+        "Varynth.Core.Simulation",
+        "Varynth.Data",
         "Varynth.World",
         "Varynth.Presentation",
+        "Unity.InputSystem",
+        "Unity.InputSystem.TestFramework",
+        "UnityEngine.UI",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

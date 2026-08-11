@@ -6,7 +6,8 @@
         "Varynth.World",
         "Varynth.Presentation",
         "Unity.InputSystem",
-        "Unity.RenderPipelines.Core.Runtime"
+        "Unity.RenderPipelines.Core.Runtime",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [
         "Editor"

@@ -1,0 +1,8 @@
+<content>
+  <buildingDefinition
+    id="bld.prototype.public_building"
+    nameKey="bld.prototype.public_building.name"
+    footprintWidth="4"
+    footprintLength="3"
+    prototypeVisualId="public" />
+</content>

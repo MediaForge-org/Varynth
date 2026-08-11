@@ -115,4 +115,32 @@ Technische Prototype-UX-Schwellwerte, keine finalen Balancing-Werte:
   `ZoomSensitivity = 8`/Notch-Wert über einen ~105-Einheiten-Bereich); finale Gefühlskontrolle
   bleibt beim Nutzer.
 
+## Phase 2C Prototypwerte (Varynth 0.2.0, nicht kanonisch)
+
+Erste echte Bau-Sandbox (Gebäude auswählen, Ghost, Rotation, Platzieren, Entfernen).
+Keine verbindliche Spezifikation für Footprints außerhalb der 3×3-Wohnhausparzelle
+(`MEGA_PROMPT` §35.1, irrelevant hier — die 3 Prototype-Gebäude sind ausdrücklich keine
+echten Wohnhausketten), für den Rotations-Snap-Schritt oder für eine generische
+Bauflächen-Formel über `SurfaceCellFlags.Buildable` hinaus gefunden — folgende Werte
+bleiben technische Prototypwerte:
+
+- 3 Prototype-Gebäude: House 2×2, Production Block 3×2, Public Building 4×3.
+  Rotations-Snap: 4 orthogonale Schritte (0°/90°/180°/270°).
+- `PlacementConfig.MaxFootprintHeightVariation = 4` Weltunits (max. Höhendifferenz über
+  die Footprint-Zellen hinweg) — empirisch gegen echte generierte Terrains kalibriert,
+  nicht die dominante Ablehnungsursache (die realen 4 Prototype-Inseln sind primär durch
+  Wasser-/Nicht-Buildable-Fläche begrenzt, nicht durch diese Regel).
+- Neue Content-Root-Konvention (bisher nicht festgelegt): reale XML-Content-Dateien
+  liegen unter `Assets/StreamingAssets/Content/<Kategorie>/*.xml` (Player-Build-sicher
+  über `Application.streamingAssetsPath`, im Gegensatz zu `Assets/` oder `Resources/`).
+- `BuildingInstanceId`: sequentieller, world-state-eigener `ulong`-Zähler (nicht `Guid`)
+  — Determinismus-Anforderung für künftiges Host-authoritatives Koop/Replay/Save.
+- **Follow-up "Bau-Sandbox-Fläche vergrößern"**: `TestIsland_Large` wurde von 260×260 auf
+  440×440 vergrößert und abgeflacht (`IslandRadius01` 0.62→0.70, `Octaves` 5→3,
+  `Persistence` 0.45→0.30, `CoastNoiseStrength` 0.14→0.12), ausschließlich über bestehende
+  `IslandPrototypeConfig`-Parameter — keine neue Terrainarchitektur, `HeightmapResolution`
+  bleibt bei 257. Reale Archipel-Kapazität stieg dadurch von ~38 auf 169 nicht
+  überlappende 2×2-Footprints. Ausdrücklich weiterhin ein technischer Sandbox-Prototypwert,
+  keine finale Varynth-Inselgröße.
+
 Details siehe `Docs/04_IMPLEMENTATION/PHASE_2B_ISLAND_TERRAIN_FOUNDATION.md`.

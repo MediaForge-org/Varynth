@@ -2,7 +2,8 @@
     "name": "Varynth.World",
     "rootNamespace": "Varynth.World",
     "references": [
-        "Varynth.Core.Definitions"
+        "Varynth.Core.Definitions",
+        "Varynth.Core.Simulation"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

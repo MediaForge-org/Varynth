@@ -1,0 +1,8 @@
+<content>
+  <buildingDefinition
+    id="bld.prototype.house"
+    nameKey="bld.prototype.house.name"
+    footprintWidth="2"
+    footprintLength="2"
+    prototypeVisualId="house" />
+</content>

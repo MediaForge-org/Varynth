@@ -12,8 +12,8 @@ namespace Varynth.Tests.PlayMode
         private const string SceneName = "WorldPrototype";
 
         // Sum of IslandPrototypeConfig.MaxResourceCandidates across
-        // WorldPrototypeIslands.GetDefaultConfigs() (5 + 3 + 2 + 3).
-        private const int MaxTotalMarkers = 13;
+        // WorldPrototypeIslands.GetDefaultConfigs() (8 + 3 + 2 + 3).
+        private const int MaxTotalMarkers = 16;
 
         [UnityTest]
         public IEnumerator MarkerCount_IsWithinConfiguredCap()

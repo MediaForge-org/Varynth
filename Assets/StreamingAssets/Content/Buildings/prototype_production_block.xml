@@ -1,0 +1,8 @@
+<content>
+  <buildingDefinition
+    id="bld.prototype.production_block"
+    nameKey="bld.prototype.production_block.name"
+    footprintWidth="3"
+    footprintLength="2"
+    prototypeVisualId="production" />
+</content>

@@ -3,8 +3,11 @@
     "rootNamespace": "Varynth.Presentation",
     "references": [
         "Varynth.Core.Definitions",
+        "Varynth.Core.Simulation",
+        "Varynth.Data",
         "Varynth.World",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

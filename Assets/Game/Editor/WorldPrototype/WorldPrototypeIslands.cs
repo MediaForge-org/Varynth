@@ -22,17 +22,30 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             {
                 new IslandPrototypeConfig
                 {
+                    // Enlarged and flattened for Phase 2C / Varynth 0.2.0's building
+                    // placement sandbox (Docs/04_IMPLEMENTATION/PHASE_2C...): the prior
+                    // 260x260 footprint could not fit all 3 prototype buildings side by
+                    // side. Widening the terrain (heightmap resolution stays the fixed
+                    // 257 shared constant -- see HeightmapResolution) automatically
+                    // spreads the same normalized relief noise over a larger physical
+                    // area, which flattens real-world slope in degrees without any new
+                    // terrain code. Octaves/Persistence reduced and IslandRadius01
+                    // raised for a wider, calmer interior plateau; the radial falloff
+                    // band near the coastline still yields a natural steep/rocky rim,
+                    // preserved on purpose so invalid-placement testing (RockOrSteep,
+                    // Coast) remains possible. This is a sandbox-only tuning value, not
+                    // a final Varynth island size (see DECISIONS.md).
                     Name = "TestIsland_Large",
                     Center = new Vector2(0f, 0f),
-                    TerrainWidth = 260f,
-                    TerrainLength = 260f,
+                    TerrainWidth = 440f,
+                    TerrainLength = 440f,
                     Seed = BaseSeed + 1,
-                    IslandRadius01 = 0.62f,
-                    CoastNoiseStrength = 0.14f,
-                    Octaves = 5,
-                    Persistence = 0.45f,
+                    IslandRadius01 = 0.70f,
+                    CoastNoiseStrength = 0.12f,
+                    Octaves = 3,
+                    Persistence = 0.30f,
                     Lacunarity = 2.0f,
-                    MaxResourceCandidates = 5
+                    MaxResourceCandidates = 8
                 },
                 new IslandPrototypeConfig
                 {
