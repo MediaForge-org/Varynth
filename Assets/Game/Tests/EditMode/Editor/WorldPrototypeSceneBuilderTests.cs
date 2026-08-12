@@ -2,6 +2,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using Varynth.Tooling.Editor.WorldPrototype;
+using Varynth.World.Roads;
 
 namespace Varynth.Tests.EditMode.Editor
 {
@@ -35,6 +36,18 @@ namespace Varynth.Tests.EditMode.Editor
             var afterGuids = AssetDatabase.FindAssets("t:Object", new[] { "Assets/Game/World/Art" });
 
             CollectionAssert.AreEquivalent(beforeGuids, afterGuids);
+        }
+
+        [Test]
+        public void PlacementGridOffset_StaysStrictlyBelowRoadRenderClearance()
+        {
+            // The Placement Grid overlay is transparent/ZWrite=0 (see SetupTransparent),
+            // so it can only ever lose the depth test against the road's opaque
+            // surface -- and only if it never sits at or above the road's own render
+            // offset. Both values must come from the same documented relationship
+            // rather than independently hand-picked magic numbers (see
+            // RoadVisualConfig's doc comment for the full "turquoise notch" history).
+            Assert.Less(WorldPrototypeSceneBuilder.PlacementOverlayHeightOffset, RoadVisualConfig.RenderClearance);
         }
     }
 }

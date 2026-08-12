@@ -39,6 +39,57 @@ namespace Varynth.Tests.EditMode.Data
             Assert.AreEqual(2, definition.FootprintLength);
             Assert.AreEqual("house", definition.PrototypeVisualId);
             Assert.IsFalse(definition.AllowsCoastPlacement);
+            Assert.AreEqual(BuildingPlacementBehavior.Single, definition.PlacementBehavior);
+        }
+
+        [Test]
+        public void PlacementBehavior_Absent_DefaultsToSingle()
+        {
+            var pipeline = new DefinitionLoadPipeline<BuildingDefinition>(new BuildingDefinitionXmlLoader());
+            var documents = new[]
+            {
+                Doc("a.xml",
+                    "<content><buildingDefinition id=\"bld.prototype.house\" nameKey=\"bld.prototype.house.name\" " +
+                    "footprintWidth=\"2\" footprintLength=\"2\" prototypeVisualId=\"house\" /></content>")
+            };
+            var registry = pipeline.Load(documents, new ContentLoadReport());
+
+            registry.TryGet(ContentId.Parse("bld.prototype.house"), out var definition);
+            Assert.AreEqual(BuildingPlacementBehavior.Single, definition.PlacementBehavior);
+        }
+
+        [Test]
+        public void PlacementBehavior_DragRepeat_IsParsed()
+        {
+            var pipeline = new DefinitionLoadPipeline<BuildingDefinition>(new BuildingDefinitionXmlLoader());
+            var documents = new[]
+            {
+                Doc("a.xml",
+                    "<content><buildingDefinition id=\"bld.prototype.house\" nameKey=\"bld.prototype.house.name\" " +
+                    "footprintWidth=\"2\" footprintLength=\"2\" prototypeVisualId=\"house\" placementBehavior=\"dragRepeat\" /></content>")
+            };
+            var registry = pipeline.Load(documents, new ContentLoadReport());
+
+            registry.TryGet(ContentId.Parse("bld.prototype.house"), out var definition);
+            Assert.AreEqual(BuildingPlacementBehavior.DragRepeat, definition.PlacementBehavior);
+        }
+
+        [Test]
+        public void PlacementBehavior_Invalid_IsRejected()
+        {
+            var pipeline = new DefinitionLoadPipeline<BuildingDefinition>(new BuildingDefinitionXmlLoader());
+            var documents = new[]
+            {
+                Doc("a.xml",
+                    "<content><buildingDefinition id=\"bld.prototype.house\" nameKey=\"bld.prototype.house.name\" " +
+                    "footprintWidth=\"2\" footprintLength=\"2\" prototypeVisualId=\"house\" placementBehavior=\"bogus\" /></content>")
+            };
+            var report = new ContentLoadReport();
+
+            var registry = pipeline.Load(documents, report);
+
+            Assert.AreEqual(0, registry.Count);
+            Assert.AreEqual(1, report.ErrorCount);
         }
 
         [Test]

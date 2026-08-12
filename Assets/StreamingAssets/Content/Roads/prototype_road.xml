@@ -1,0 +1,9 @@
+<content>
+  <roadDefinition
+    id="road.prototype.basic"
+    nameKey="road.prototype.basic.name"
+    prototypeVisualId="road"
+    logicalWidthCells="1"
+    allowsDiagonalSegments="true"
+    allowsCoastPlacement="false" />
+</content>

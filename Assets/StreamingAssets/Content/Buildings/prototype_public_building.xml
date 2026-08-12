@@ -4,5 +4,6 @@
     nameKey="bld.prototype.public_building.name"
     footprintWidth="4"
     footprintLength="3"
-    prototypeVisualId="public" />
+    prototypeVisualId="public"
+    placementBehavior="single" />
 </content>

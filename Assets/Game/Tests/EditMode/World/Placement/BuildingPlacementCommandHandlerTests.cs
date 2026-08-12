@@ -84,5 +84,40 @@ namespace Varynth.Tests.EditMode.World.Placement
             Assert.IsTrue(handled);
             Assert.AreEqual(placed.Id, removed.Id);
         }
+
+        [Test]
+        public void Handle_Batch_FullyValid_PlacesAllInDeterministicIdOrder()
+        {
+            var origins = new[] { new GridCoordinate(0, 0), new GridCoordinate(2, 0), new GridCoordinate(4, 0) };
+            var command = new PlaceBuildingBatchCommand(PlayerId.NewId(), GameTick.Zero, ContentId.Parse("bld.prototype.house"), BuildingRotation.Deg0, origins);
+
+            _handler.Handle(command, out var placed, out var rejected);
+
+            Assert.AreEqual(3, placed.Count);
+            Assert.AreEqual(0, rejected.Count);
+            // Instance-id order must match Origins order exactly (deterministic).
+            for (var i = 0; i < placed.Count; i++)
+            {
+                Assert.AreEqual(origins[i], placed[i].Origin);
+            }
+            Assert.Less(placed[0].Id.Value, placed[1].Id.Value);
+            Assert.Less(placed[1].Id.Value, placed[2].Id.Value);
+        }
+
+        [Test]
+        public void Handle_Batch_PartiallyInvalid_PlacesValidSkipsInvalid()
+        {
+            // First place a real building at (2,0) so the batch's second origin collides.
+            _handler.Handle(new PlaceBuildingCommand(PlayerId.NewId(), GameTick.Zero, ContentId.Parse("bld.prototype.house"), new GridCoordinate(2, 0), BuildingRotation.Deg0), out _, out _);
+
+            var origins = new[] { new GridCoordinate(0, 0), new GridCoordinate(2, 0), new GridCoordinate(4, 0) };
+            var command = new PlaceBuildingBatchCommand(PlayerId.NewId(), GameTick.Zero, ContentId.Parse("bld.prototype.house"), BuildingRotation.Deg0, origins);
+
+            _handler.Handle(command, out var placed, out var rejected);
+
+            Assert.AreEqual(2, placed.Count, "The valid origins should place; the collided one should be skipped, not veto the whole batch.");
+            Assert.AreEqual(1, rejected.Count);
+            Assert.AreEqual(new GridCoordinate(2, 0), rejected[0].Origin);
+        }
     }
 }

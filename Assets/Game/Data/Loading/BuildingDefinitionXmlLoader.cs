@@ -64,6 +64,14 @@ namespace Varynth.Data.Loading
                 return false;
             }
 
+            var placementBehaviorAttribute = element.Attribute("placementBehavior")?.Value;
+            var placementBehavior = BuildingPlacementBehavior.Single;
+            if (placementBehaviorAttribute != null && !TryParsePlacementBehavior(placementBehaviorAttribute, out placementBehavior))
+            {
+                report.AddError(source, filePath, id, $"<buildingDefinition id='{id}'> has an invalid 'placementBehavior' attribute: '{placementBehaviorAttribute}'.");
+                return false;
+            }
+
             foreach (var attribute in element.Attributes())
             {
                 switch (attribute.Name.LocalName)
@@ -74,6 +82,7 @@ namespace Varynth.Data.Loading
                     case "footprintLength":
                     case "prototypeVisualId":
                     case "allowsCoastPlacement":
+                    case "placementBehavior":
                         continue;
                     default:
                         report.AddInfo(source, filePath, id, $"Unknown attribute '{attribute.Name.LocalName}' on <buildingDefinition> ignored.");
@@ -81,8 +90,24 @@ namespace Varynth.Data.Loading
                 }
             }
 
-            definition = new BuildingDefinition(id, nameKey, footprintWidth, footprintLength, prototypeVisualId, allowsCoastPlacement);
+            definition = new BuildingDefinition(id, nameKey, footprintWidth, footprintLength, prototypeVisualId, allowsCoastPlacement, placementBehavior);
             return true;
+        }
+
+        private static bool TryParsePlacementBehavior(string text, out BuildingPlacementBehavior behavior)
+        {
+            switch (text.Trim().ToLowerInvariant())
+            {
+                case "single":
+                    behavior = BuildingPlacementBehavior.Single;
+                    return true;
+                case "dragrepeat":
+                    behavior = BuildingPlacementBehavior.DragRepeat;
+                    return true;
+                default:
+                    behavior = BuildingPlacementBehavior.Single;
+                    return false;
+            }
         }
     }
 }

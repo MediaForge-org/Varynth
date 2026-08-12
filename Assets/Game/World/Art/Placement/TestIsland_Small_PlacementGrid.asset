@@ -6,13 +6,13 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: SurfaceOverlay_Buildable
+  m_Name: SurfaceOverlayLines_Buildable
   serializedVersion: 12
   m_SubMeshes:
   - serializedVersion: 2
     firstByte: 0
     indexCount: 0
-    topology: 0
+    topology: 3
     baseVertex: 0
     firstVertex: 0
     vertexCount: 0

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions.Buildings;
 using Varynth.World.Grid;
+using Varynth.World.Roads;
 using Varynth.World.Surface;
 using Varynth.World.Terrain;
 
@@ -21,7 +22,8 @@ namespace Varynth.World.Placement
             IWorldHeightSource heights,
             WorldGrid grid,
             BuildingDefinition definition,
-            PlacementConfig config)
+            PlacementConfig config,
+            IRoadOccupancyQuery roadOccupancy = null)
         {
             var issues = PlacementIssue.None;
             var minHeight = float.MaxValue;
@@ -60,6 +62,11 @@ namespace Varynth.World.Placement
                 if (occupancy.TryGetOccupant(cell, out _))
                 {
                     issues |= PlacementIssue.AlreadyOccupied;
+                }
+
+                if (roadOccupancy != null && roadOccupancy.IsCellRoadOccupied(cell))
+                {
+                    issues |= PlacementIssue.RoadOccupied;
                 }
 
                 var center = grid.CellToWorldCenter(cell);

@@ -144,3 +144,51 @@ bleiben technische Prototypwerte:
   keine finale Varynth-Inselgröße.
 
 Details siehe `Docs/04_IMPLEMENTATION/PHASE_2B_ISLAND_TERRAIN_FOUNDATION.md`.
+
+## Phase 2D Prototypwerte (Varynth 0.2.1, nicht kanonisch)
+
+Straßen-/Wegnetz-Fundament + Drag/Repeat-Gebäudeplatzierung. Für Straßen existiert
+in `MEGA_PROMPT` §44 nur ein zukünftiges 5-Stufen-Datenmodell (Kosten/Geschwindigkeit,
+ausdrücklich "noch offene Zahlen", ausdrücklich kein Kreuzungs-/Stau-Modell) — Kosten/
+Geschwindigkeitswerte bleiben deshalb bewusst außerhalb dieses Pakets. Diagonale
+Straßen/gerundete Übergänge sind eine neue, ausdrückliche Nutzeranweisung für 0.2.1,
+keine erfundene Spezifikation.
+
+- `BuildingPlacementBehavior` (`Single`/`DragRepeat`) je Prototype-Gebäude:
+  House = `DragRepeat` (Nutzervorgabe, klassische Wohnreihen-UX), Production Block =
+  `Single` (bewusst konservativ — kein etabliertes Repeat-UX-Muster für Produktionsgebäude,
+  leicht später revidierbar), Public Building = `Single` (explizite Nutzervorgabe).
+- Drag/Repeat-Partial-Invalid-Policy: **gültige Gebäude platzieren, ungültige
+  überspringen** (nicht die ganze Gruppe ablehnen) — auf den real durchwachsenen
+  Prototype-Inseln würde "alles oder nichts" Drag-Platzierung nahezu unbenutzbar machen.
+  Straßen-Routing verwendet bewusst die **entgegengesetzte** Regel (alles-oder-nichts,
+  siehe unten) — Straßen brauchen ein echtes zusammenhängendes Netz, Gebäude nicht.
+- `RoadDefinition.LogicalWidthCells = 1` (Prototype-Straßenbreite, einspurig),
+  `AllowsDiagonalSegments = true`, `AllowsCoastPlacement = false` (mirrort
+  `BuildingDefinition.AllowsCoastPlacement`, spätere Küsten-/Hafenstraße kann rein
+  datengetrieben opt-in).
+- `RoadPlacementConfig.MaxSegmentSlopeDegrees = 30°` (gleicher Wert wie
+  `SurfaceClassificationConfig.SlopeThresholdDegrees`, unabhängig einstellbar).
+- Straßen-Routing: **A\*** mit **Integer**-Kosten (1000 orthogonal, 1414 diagonal, kein
+  `Mathf.Sqrt` im deterministischen Zustand) und einer totalen Tie-Break-Ordnung
+  (`f → h → X → Z → Richtung`) — identischer Input erzeugt garantiert bitidentische
+  `OrderedPath`-Ergebnisse, unabhängig von Dictionary-/Heap-Iterationsreihenfolge.
+- Diagonale Straßen-Freigabe bewusst konservativ für die Prototype-Breite: eine
+  Diagonale ist nur gültig, wenn **beide** orthogonalen Flankenzellen frei sind (nicht
+  die klassische Pathfinding-Regel "nur wenn beide blockiert"), plus eine zusätzliche
+  Prüfung gegen sich kreuzende Gegendiagonalen im selben Grid-Quadrat
+  (`DiagonalCrossingRule`).
+- Straßenanschluss-Prüfung (`BuildingRoadConnectionQuery`): **nur echte Seiten-/
+  Edge-Nachbarschaft zählt als Anschluss, nicht reines Diagonal-Corner-Touch** —
+  explizite Nutzervorgabe, nicht implizit entschieden.
+- `RoadSegmentId` liegt bewusst in `Varynth.Core.Common` (nicht `Varynth.World.Roads`):
+  `RemoveRoadCommand` (`Varynth.Core.Simulation`) braucht den Typ, und
+  `Core.Simulation` darf `Varynth.World` nie referenzieren — derselbe Grund, aus dem
+  `BuildingInstanceId` schon dort liegt.
+- `ArchipelagoPlacementState` und `RoadNetworkState` referenzieren sich **nie
+  gegenseitig** — Cross-Validation (Gebäude auf Straße / Straße durch Gebäude) läuft
+  über kleine neutrale Read-only-Interfaces (`IBuildingOccupancyQuery`/
+  `IRoadOccupancyQuery`), komponiert von der einen Stelle (Presentation/Command-Handler),
+  die beide Systeme ohnehin kennt.
+
+Details siehe `Docs/04_IMPLEMENTATION/PHASE_2D_ROAD_NETWORK_FOUNDATION.md`.

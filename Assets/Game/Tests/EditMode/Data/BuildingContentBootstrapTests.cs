@@ -2,6 +2,7 @@ using System.IO;
 using NUnit.Framework;
 using UnityEngine;
 using Varynth.Core.Common;
+using Varynth.Core.Definitions.Buildings;
 using Varynth.Data.Loading;
 
 namespace Varynth.Tests.EditMode.Data
@@ -21,14 +22,17 @@ namespace Varynth.Tests.EditMode.Data
             Assert.IsTrue(registry.TryGet(ContentId.Parse("bld.prototype.house"), out var house));
             Assert.AreEqual(2, house.FootprintWidth);
             Assert.AreEqual(2, house.FootprintLength);
+            Assert.AreEqual(BuildingPlacementBehavior.DragRepeat, house.PlacementBehavior);
 
             Assert.IsTrue(registry.TryGet(ContentId.Parse("bld.prototype.production_block"), out var production));
             Assert.AreEqual(3, production.FootprintWidth);
             Assert.AreEqual(2, production.FootprintLength);
+            Assert.AreEqual(BuildingPlacementBehavior.Single, production.PlacementBehavior);
 
             Assert.IsTrue(registry.TryGet(ContentId.Parse("bld.prototype.public_building"), out var publicBuilding));
             Assert.AreEqual(4, publicBuilding.FootprintWidth);
             Assert.AreEqual(3, publicBuilding.FootprintLength);
+            Assert.AreEqual(BuildingPlacementBehavior.Single, publicBuilding.PlacementBehavior);
         }
     }
 }

@@ -18,6 +18,13 @@ namespace Varynth.World.Placement
         Coast = 1 << 3,
         RockOrSteep = 1 << 4,
         AlreadyOccupied = 1 << 5,
-        HeightVariationTooLarge = 1 << 6
+        HeightVariationTooLarge = 1 << 6,
+
+        /// <summary>
+        /// A cell in the footprint is already occupied by a road segment (Phase 2D).
+        /// Checked via an injected IRoadOccupancyQuery, never a direct reference to
+        /// RoadNetworkState -- see BuildingPlacementCommandHandler/PlacementValidator.
+        /// </summary>
+        RoadOccupied = 1 << 7
     }
 }

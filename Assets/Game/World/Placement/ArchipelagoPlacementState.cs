@@ -5,6 +5,7 @@ using Varynth.Core.Definitions.Buildings;
 using Varynth.Core.Registry;
 using Varynth.Core.Simulation.Common;
 using Varynth.World.Grid;
+using Varynth.World.Roads;
 using Varynth.World.Surface;
 using Varynth.World.Terrain;
 
@@ -22,8 +23,14 @@ namespace Varynth.World.Placement
     /// boundary. (PlayerId itself is a plain identity value type from
     /// Varynth.Core.Simulation.Common, not a command -- using it here doesn't
     /// reintroduce that coupling.)
+    ///
+    /// Never references RoadNetworkState directly (the two world-state systems stay
+    /// decoupled) -- an optional IRoadOccupancyQuery is accepted per-call instead,
+    /// composed by whichever caller (PlacementController/BuildingPlacementCommandHandler)
+    /// already holds both systems. Implements IBuildingOccupancyQuery so the road
+    /// side can perform the symmetric check without a reference back into this type.
     /// </summary>
-    public sealed class ArchipelagoPlacementState
+    public sealed class ArchipelagoPlacementState : IBuildingOccupancyQuery
     {
         private sealed class IslandEntry
         {
@@ -92,7 +99,8 @@ namespace Varynth.World.Placement
         }
 
         public PlacementValidationResult ValidatePlacementAt(
-            ContentId definitionId, GridCoordinate origin, BuildingRotation rotation, ContentRegistry<BuildingDefinition> registry)
+            ContentId definitionId, GridCoordinate origin, BuildingRotation rotation, ContentRegistry<BuildingDefinition> registry,
+            IRoadOccupancyQuery roadOccupancy = null)
         {
             if (!registry.TryGet(definitionId, out var definition))
             {
@@ -107,7 +115,7 @@ namespace Varynth.World.Placement
             }
 
             var island = _islands[islandIndex];
-            return PlacementValidator.Validate(cells, island.Surface, island.Occupancy, island.Heights, _grid, definition, _config);
+            return PlacementValidator.Validate(cells, island.Surface, island.Occupancy, island.Heights, _grid, definition, _config, roadOccupancy);
         }
 
         public bool TryPlace(
@@ -117,10 +125,15 @@ namespace Varynth.World.Placement
             PlayerId owner,
             ContentRegistry<BuildingDefinition> registry,
             out BuildingInstance instance,
-            out PlacementValidationResult validation)
+            out PlacementValidationResult validation,
+            IRoadOccupancyQuery roadOccupancy = null)
         {
             instance = null;
-            validation = ValidatePlacementAt(definitionId, origin, rotation, registry);
+            // Authoritative -- the same call path (and, when the caller passes the
+            // same roadOccupancy instance, the same live road state) that any
+            // Presentation-side ghost preview already used, never a separate/looser
+            // check for the real command-application path.
+            validation = ValidatePlacementAt(definitionId, origin, rotation, registry, roadOccupancy);
             if (!validation.IsValid)
             {
                 return false;
@@ -162,6 +175,24 @@ namespace Varynth.World.Placement
             }
 
             occupant = BuildingInstanceId.None;
+            return false;
+        }
+
+        /// <summary>IBuildingOccupancyQuery -- used by RoadPlacementValidator via a per-call parameter, never a stored reference.</summary>
+        public bool IsCellOccupied(GridCoordinate cell)
+        {
+            return TryGetOccupantAt(cell, out _);
+        }
+
+        public bool TryGetInstance(BuildingInstanceId id, out BuildingInstance instance)
+        {
+            if (_instances.TryGetValue(id, out var entry))
+            {
+                instance = entry.Instance;
+                return true;
+            }
+
+            instance = null;
             return false;
         }
     }

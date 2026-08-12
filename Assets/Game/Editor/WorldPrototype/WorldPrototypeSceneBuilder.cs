@@ -10,12 +10,15 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 using Varynth.Core.Common;
+using Varynth.Presentation;
 using Varynth.Presentation.Camera;
 using Varynth.Presentation.Interaction;
 using Varynth.Presentation.Placement;
+using Varynth.Presentation.Roads;
 using Varynth.Presentation.Visualization;
 using Varynth.World.Grid;
 using Varynth.World.Placement;
+using Varynth.World.Roads;
 using Varynth.World.Surface;
 using Varynth.World.Terrain;
 
@@ -72,7 +75,21 @@ namespace Varynth.Tooling.Editor.WorldPrototype
         private const string PrototypeHouseMaterialPath = "Assets/Game/World/Art/Materials/Prototype_House.mat";
         private const string PrototypeProductionMaterialPath = "Assets/Game/World/Art/Materials/Prototype_Production.mat";
         private const string PrototypePublicMaterialPath = "Assets/Game/World/Art/Materials/Prototype_Public.mat";
-        private const float PlacementOverlayHeightOffset = 0.04f;
+
+        // Phase 2D -- Repeat Building Placement + Road Network Foundation.
+        private const string DragPreviewValidMaterialPath = "Assets/Game/World/Art/Materials/DragPreview_Valid.mat";
+        private const string DragPreviewInvalidMaterialPath = "Assets/Game/World/Art/Materials/DragPreview_Invalid.mat";
+        private const string RoadArtDirectory = "Assets/Game/World/Art/Roads";
+        private const string RoadNetworkMaterialPath = "Assets/Game/World/Art/Materials/RoadNetwork.mat";
+        private const string RoadPreviewValidMaterialPath = "Assets/Game/World/Art/Materials/RoadPreview_Valid.mat";
+        private const string RoadPreviewInvalidMaterialPath = "Assets/Game/World/Art/Materials/RoadPreview_Invalid.mat";
+        private const string PrototypeRoadDefinitionId = "road.prototype.basic";
+        // Must stay strictly below RoadVisualConfig.RenderClearance so the
+        // (transparent, ZWrite=0) Placement Grid overlay never wins the depth test
+        // over an opaque finished road surface at the same XZ position -- one shared
+        // source of truth instead of independently hand-picked magic offsets across
+        // classes (see RoadVisualConfig's own doc comment for the full reasoning).
+        public const float PlacementOverlayHeightOffset = RoadVisualConfig.RenderClearance - 0.01f;
 
         // Phase 2A/2B prototype values -- not canon design/balancing values.
         private const float TerrainVerticalSize = 40f;
@@ -168,23 +185,39 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             var placementAssetsRoot = FindOrCreateRoot("PlacementAssets");
             var visualCatalog = BuildPrototypeBuildingVisuals(placementAssetsRoot);
             var ghost = BuildGhost(placementAssetsRoot);
+            var dragPreview = BuildDragPreview(placementAssetsRoot);
 
             var placedBuildingsRoot = FindOrCreateRoot("PlacedBuildings");
 
             var uiRoot = FindOrCreateRoot("UI");
-            var (houseButton, productionButton, publicButton) = BuildPrototypeBuildUI(uiRoot);
+            var (houseButton, productionButton, publicButton, roadButton) = BuildPrototypeBuildUI(uiRoot);
 
             BuildPlacementController(
                 cameraRig,
                 worldInteraction,
                 islandResults,
-                placementGrids,
                 ghost,
+                dragPreview,
                 visualCatalog,
                 placedBuildingsRoot.transform,
                 houseButton,
                 productionButton,
                 publicButton);
+
+            var roadNetworkRoot = FindOrCreateRoot("RoadNetwork");
+            var roadNetworkDisplays = BuildRoadNetworkDisplays(roadNetworkRoot, islandResults);
+            var roadPreview = BuildRoadPreview(placementAssetsRoot);
+
+            BuildRoadController(
+                cameraRig,
+                worldInteraction,
+                islandResults,
+                roadNetworkDisplays,
+                roadPreview,
+                roadButton);
+
+            var coordinatorRoot = FindOrCreateRoot("ConstructionTools");
+            BuildConstructionToolCoordinatorHost(coordinatorRoot, placementGrids);
 
             AddSceneToBuildSettings(ScenePath);
 
@@ -1101,8 +1134,12 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             // chunk meshes without PlacementController's per-island show/hide logic
             // needing to change.
             var displays = new GridDisplay[islands.Count];
+            // Fine cell-boundary LINES, not a filled quad fill: a full solid
+            // translucent cyan covering an entire island reads as flooding/water at
+            // a glance (real user-reported visual blocker). Terrain must stay clearly
+            // visible through the grid -- a classic thin build-grid look instead.
             var material = GetOrCreateMaterial(
-                PlacementGridMaterialPath, new Color(0.35f, 0.85f, 1f, 0.5f), UnlitShaderName, transparent: true);
+                PlacementGridMaterialPath, new Color(0.55f, 0.95f, 1f, 0.9f), UnlitShaderName, transparent: true);
 
             for (var i = 0; i < islands.Count; i++)
             {
@@ -1116,7 +1153,7 @@ namespace Varynth.Tooling.Editor.WorldPrototype
 
                 var source = new SurfaceOverlayMeshBuilder.IslandSurfaceSource(
                     island.SurfaceMap, island.CellBounds, new UnityTerrainHeightSource(island.Terrain));
-                var mesh = SurfaceOverlayMeshBuilder.BuildCategoryMesh(
+                var mesh = SurfaceOverlayMeshBuilder.BuildCategoryLineMesh(
                     grid, new[] { source }, SurfaceCellFlags.Buildable, PlacementOverlayHeightOffset);
                 var meshPath = $"{PlacementArtDirectory}/{island.Config.Name}_PlacementGrid.asset";
                 mesh = SaveOrUpdateMeshAsset(mesh, meshPath);
@@ -1224,7 +1261,7 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             return ghost;
         }
 
-        private static (Button House, Button Production, Button Public) BuildPrototypeBuildUI(GameObject uiRoot)
+        private static (Button House, Button Production, Button Public, Button Road) BuildPrototypeBuildUI(GameObject uiRoot)
         {
             // UI Buttons need an EventSystem + an Input-System-aware input module to
             // receive clicks under this project's exclusively-new-Input-System setup
@@ -1268,13 +1305,14 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             barRect.anchorMax = new Vector2(0.5f, 0f);
             barRect.pivot = new Vector2(0.5f, 0f);
             barRect.anchoredPosition = new Vector2(0f, 20f);
-            barRect.sizeDelta = new Vector2(460f, 60f);
+            barRect.sizeDelta = new Vector2(610f, 60f);
 
-            var houseButton = BuildBuildButton(barGo, "HouseButton", "1: House", new Vector2(-150f, 0f));
-            var productionButton = BuildBuildButton(barGo, "ProductionButton", "2: Production", new Vector2(0f, 0f));
-            var publicButton = BuildBuildButton(barGo, "PublicButton", "3: Public", new Vector2(150f, 0f));
+            var houseButton = BuildBuildButton(barGo, "HouseButton", "1: House (Drag)", new Vector2(-225f, 0f));
+            var productionButton = BuildBuildButton(barGo, "ProductionButton", "2: Production", new Vector2(-75f, 0f));
+            var publicButton = BuildBuildButton(barGo, "PublicButton", "3: Public", new Vector2(75f, 0f));
+            var roadButton = BuildBuildButton(barGo, "RoadButton", "4: Road Tool", new Vector2(225f, 0f));
 
-            return (houseButton, productionButton, publicButton);
+            return (houseButton, productionButton, publicButton, roadButton);
         }
 
         private static Button BuildBuildButton(GameObject parent, string name, string label, Vector2 anchoredPosition)
@@ -1333,8 +1371,8 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             GameObject cameraRig,
             WorldInteractionController worldInteraction,
             List<IslandBuildResult> islands,
-            GridDisplay[] placementGrids,
             PlacementGhostDisplay ghost,
+            DragPreviewDisplay dragPreview,
             PrototypeBuildingVisualCatalog visualCatalog,
             Transform placedBuildingsRoot,
             Button houseButton,
@@ -1350,8 +1388,8 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             var serialized = new SerializedObject(controller);
             serialized.FindProperty("_worldInteraction").objectReferenceValue = worldInteraction;
             SetObjectArray(serialized, "_islandSurfaceData", islands.Select(i => (Object)i.RuntimeSurfaceData).ToArray());
-            SetObjectArray(serialized, "_placementGrids", placementGrids);
             serialized.FindProperty("_ghost").objectReferenceValue = ghost;
+            serialized.FindProperty("_dragPreview").objectReferenceValue = dragPreview;
             serialized.FindProperty("_visualCatalog").objectReferenceValue = visualCatalog;
             serialized.FindProperty("_placedBuildingsRoot").objectReferenceValue = placedBuildingsRoot;
             serialized.FindProperty("_houseButton").objectReferenceValue = houseButton;
@@ -1360,6 +1398,172 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             return controller;
+        }
+
+        private static DragPreviewDisplay BuildDragPreview(GameObject root)
+        {
+            var go = FindOrCreateChild(root, "DragPreview");
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = Vector3.one;
+
+            var meshFilter = EnsureComponent<MeshFilter>(go);
+            var meshRenderer = EnsureComponent<MeshRenderer>(go);
+            meshRenderer.enabled = false;
+
+            var invalidGo = FindOrCreateChild(go, "InvalidGroup");
+            var invalidMeshFilter = EnsureComponent<MeshFilter>(invalidGo);
+            var invalidMeshRenderer = EnsureComponent<MeshRenderer>(invalidGo);
+            invalidMeshRenderer.enabled = false;
+
+            var display = go.GetComponent<DragPreviewDisplay>();
+            if (display == null)
+            {
+                display = go.AddComponent<DragPreviewDisplay>();
+            }
+
+            var validMaterial = GetOrCreateMaterial(DragPreviewValidMaterialPath, new Color(0.30f, 0.95f, 0.40f, 0.55f), UnlitShaderName, transparent: true);
+            var invalidMaterial = GetOrCreateMaterial(DragPreviewInvalidMaterialPath, new Color(0.95f, 0.25f, 0.25f, 0.55f), UnlitShaderName, transparent: true);
+
+            var serialized = new SerializedObject(display);
+            serialized.FindProperty("_validMaterial").objectReferenceValue = validMaterial;
+            serialized.FindProperty("_invalidGroupTransform").objectReferenceValue = invalidGo.transform;
+            serialized.FindProperty("_invalidMeshFilter").objectReferenceValue = invalidMeshFilter;
+            serialized.FindProperty("_invalidMeshRenderer").objectReferenceValue = invalidMeshRenderer;
+            serialized.FindProperty("_invalidMaterial").objectReferenceValue = invalidMaterial;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return display;
+        }
+
+        private static ConstructionToolCoordinatorHost BuildConstructionToolCoordinatorHost(GameObject root, GridDisplay[] placementGrids)
+        {
+            var go = FindOrCreateChild(root, "ConstructionToolCoordinator");
+            var host = go.GetComponent<ConstructionToolCoordinatorHost>();
+            if (host == null)
+            {
+                host = go.AddComponent<ConstructionToolCoordinatorHost>();
+            }
+
+            var serialized = new SerializedObject(host);
+            SetObjectArray(serialized, "_placementGrids", placementGrids);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return host;
+        }
+
+        private static RoadNetworkDisplay[] BuildRoadNetworkDisplays(GameObject root, List<IslandBuildResult> islands)
+        {
+            // Per-island road mesh (not one archipelago-wide mesh), mirrors the
+            // Placement Grid per-island pattern -- keeps future chunked rebuilding
+            // additive (Phase 2D §B12). Visible by default (unlike the Placement
+            // Grid): a built road is permanent world geometry, not a placement-mode
+            // overlay. Empty at scene-build time -- filled in by RoadRuntimeMeshRefresh
+            // the first time a road is actually built at runtime.
+            var displays = new RoadNetworkDisplay[islands.Count];
+            var material = GetOrCreateMaterial(RoadNetworkMaterialPath, new Color(0.35f, 0.33f, 0.30f, 1f), LitShaderName, transparent: false);
+            // Matte, not the URP Lit default Smoothness=0.5: a shiny road surface
+            // combined with per-vertex terrain-noise-driven normal variation between
+            // adjacent tessellated triangles produces small, sun-colored specular
+            // highlight slivers right at the internal tessellation seams -- visually
+            // similar to (though a distinct root cause from) the earlier undersampling
+            // gap bug. A flat matte prototype road surface has no such highlights.
+            material.SetFloat("_Smoothness", 0f);
+            material.SetFloat("_SpecularHighlights", 0f);
+            material.SetFloat("_EnvironmentReflections", 0f);
+
+            for (var i = 0; i < islands.Count; i++)
+            {
+                var go = FindOrCreateChild(root, islands[i].Config.Name);
+                var meshFilter = EnsureComponent<MeshFilter>(go);
+                var meshRenderer = EnsureComponent<MeshRenderer>(go);
+
+                var display = go.GetComponent<RoadNetworkDisplay>();
+                if (display == null)
+                {
+                    display = go.AddComponent<RoadNetworkDisplay>();
+                }
+
+                var serialized = new SerializedObject(display);
+                serialized.FindProperty("_material").objectReferenceValue = material;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+
+                meshRenderer.sharedMaterial = material;
+                displays[i] = display;
+            }
+
+            return displays;
+        }
+
+        private static RoadPreviewDisplay BuildRoadPreview(GameObject root)
+        {
+            var go = FindOrCreateChild(root, "RoadPreview");
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = Vector3.one;
+
+            var meshFilter = EnsureComponent<MeshFilter>(go);
+            var meshRenderer = EnsureComponent<MeshRenderer>(go);
+            meshRenderer.enabled = false;
+
+            var display = go.GetComponent<RoadPreviewDisplay>();
+            if (display == null)
+            {
+                display = go.AddComponent<RoadPreviewDisplay>();
+            }
+
+            var validMaterial = GetOrCreateMaterial(RoadPreviewValidMaterialPath, new Color(0.85f, 0.80f, 0.35f, 0.65f), UnlitShaderName, transparent: true);
+            var invalidMaterial = GetOrCreateMaterial(RoadPreviewInvalidMaterialPath, new Color(0.95f, 0.25f, 0.25f, 0.65f), UnlitShaderName, transparent: true);
+
+            var serialized = new SerializedObject(display);
+            serialized.FindProperty("_validMaterial").objectReferenceValue = validMaterial;
+            serialized.FindProperty("_invalidMaterial").objectReferenceValue = invalidMaterial;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return display;
+        }
+
+        private static RoadPlacementController BuildRoadController(
+            GameObject cameraRig,
+            WorldInteractionController worldInteraction,
+            List<IslandBuildResult> islands,
+            RoadNetworkDisplay[] networkDisplays,
+            RoadPreviewDisplay preview,
+            Button roadToolButton)
+        {
+            var controller = cameraRig.GetComponent<RoadPlacementController>();
+            if (controller == null)
+            {
+                controller = cameraRig.AddComponent<RoadPlacementController>();
+            }
+
+            var serialized = new SerializedObject(controller);
+            serialized.FindProperty("_worldInteraction").objectReferenceValue = worldInteraction;
+            SetObjectArray(serialized, "_islandSurfaceData", islands.Select(i => (Object)i.RuntimeSurfaceData).ToArray());
+            SetObjectArray(serialized, "_networkDisplays", networkDisplays);
+            serialized.FindProperty("_preview").objectReferenceValue = preview;
+            serialized.FindProperty("_roadToolButton").objectReferenceValue = roadToolButton;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return controller;
+        }
+
+        // Deliberately NOT `go.GetComponent<T>() ?? go.AddComponent<T>()`: the C#
+        // null-coalescing operator on a UnityEngine.Object performs a plain
+        // reference/IL null check, bypassing Unity's overloaded `==`/fake-null
+        // handling -- an absent component can come back as a "fake null" object that
+        // then throws on first real use (confirmed empirically: this exact bug broke
+        // BuildDragPreview). Explicit `== null` matches Unity's own overload and is
+        // the proven-correct idiom already used throughout the rest of this file.
+        private static T EnsureComponent<T>(GameObject go) where T : Component
+        {
+            var component = go.GetComponent<T>();
+            if (component == null)
+            {
+                component = go.AddComponent<T>();
+            }
+
+            return component;
         }
 
         private static void SetObjectArray(SerializedObject serialized, string propertyName, Object[] values)

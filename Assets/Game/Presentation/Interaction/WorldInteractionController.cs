@@ -55,6 +55,15 @@ namespace Varynth.Presentation.Interaction
         /// </summary>
         public GridCoordinate? HoveredCell { get; private set; }
 
+        /// <summary>
+        /// The real continuous world-space hit position under the cursor, if any --
+        /// used by RoadPlacementController's removal picking to disambiguate which
+        /// segment at a busy node the cursor is closest to (a snapped GridCoordinate
+        /// alone is ambiguous at junctions). Purely a transient Presentation-side
+        /// value, never stored in any world/gameplay state.
+        /// </summary>
+        public Vector3? HoveredWorldPosition { get; private set; }
+
         private void Awake()
         {
             _grid = new WorldGrid(_cellSize, _gridOrigin);
@@ -108,11 +117,13 @@ namespace Varynth.Presentation.Interaction
             {
                 var cell = _pointer.ToCell(worldPosition);
                 HoveredCell = cell;
+                HoveredWorldPosition = worldPosition;
                 _highlight.SetCell(cell, _grid, _heightSource);
             }
             else
             {
                 HoveredCell = null;
+                HoveredWorldPosition = null;
                 _highlight.Hide();
             }
         }

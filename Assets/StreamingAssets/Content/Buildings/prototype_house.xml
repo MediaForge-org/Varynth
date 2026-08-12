@@ -4,5 +4,6 @@
     nameKey="bld.prototype.house.name"
     footprintWidth="2"
     footprintLength="2"
-    prototypeVisualId="house" />
+    prototypeVisualId="house"
+    placementBehavior="dragRepeat" />
 </content>

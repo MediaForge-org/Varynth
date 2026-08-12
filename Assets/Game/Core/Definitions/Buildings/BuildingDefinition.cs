@@ -37,13 +37,21 @@ namespace Varynth.Core.Definitions.Buildings
         /// </summary>
         public bool AllowsCoastPlacement { get; }
 
+        /// <summary>
+        /// Single-click vs. drag/repeat placement (Phase 2D). Trailing optional
+        /// parameter, defaults to Single -- existing call sites that construct
+        /// BuildingDefinition directly keep compiling unchanged.
+        /// </summary>
+        public BuildingPlacementBehavior PlacementBehavior { get; }
+
         public BuildingDefinition(
             ContentId id,
             LocalizationKey nameKey,
             int footprintWidth,
             int footprintLength,
             string prototypeVisualId,
-            bool allowsCoastPlacement = false)
+            bool allowsCoastPlacement = false,
+            BuildingPlacementBehavior placementBehavior = BuildingPlacementBehavior.Single)
         {
             Id = id;
             NameKey = nameKey;
@@ -51,6 +59,7 @@ namespace Varynth.Core.Definitions.Buildings
             FootprintLength = footprintLength;
             PrototypeVisualId = prototypeVisualId ?? string.Empty;
             AllowsCoastPlacement = allowsCoastPlacement;
+            PlacementBehavior = placementBehavior;
         }
     }
 }

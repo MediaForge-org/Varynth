@@ -4,5 +4,6 @@
     nameKey="bld.prototype.production_block.name"
     footprintWidth="3"
     footprintLength="2"
-    prototypeVisualId="production" />
+    prototypeVisualId="production"
+    placementBehavior="single" />
 </content>
