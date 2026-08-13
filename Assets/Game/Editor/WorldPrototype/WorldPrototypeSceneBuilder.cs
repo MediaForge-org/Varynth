@@ -848,6 +848,11 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             var renderer = gridRoot.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = GetOrCreateMaterial(
                 GridMaterialPath, new Color(1f, 1f, 1f, 0.55f), UnlitShaderName, transparent: true);
+            // Hidden by default (0.2.2 hotfix) -- WorldInteractionController's runtime
+            // baseline now also forces this hidden regardless of the serialized value,
+            // but keeping the scene-build-time default consistent avoids drift/a
+            // one-frame flash and matches the same pattern BuildPlacementGrids uses.
+            renderer.enabled = false;
 
             return display;
         }

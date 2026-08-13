@@ -55,14 +55,21 @@ namespace Varynth.Tests.PlayMode
             var meshRenderer = gridDisplay.GetComponent<MeshRenderer>();
             Assert.IsNotNull(meshRenderer);
 
+            // 0.2.2 hotfix: this assertion previously required the grid to be visible
+            // by default -- that default was itself the real bug behind a reported
+            // "fine grid stays visible with no tool active" regression (confirmed via
+            // real runtime instrumentation + a real captured screenshot: this exact
+            // Debug Grid was the only grid-related renderer enabled at scene start).
+            // WorldInteractionController now establishes a verified-hidden runtime
+            // baseline; only an explicit G press reveals it.
             var initiallyVisible = meshRenderer.enabled;
-            Assert.IsTrue(initiallyVisible, "Grid should be visible by default.");
-
-            gridDisplay.SetVisible(false);
-            Assert.IsFalse(meshRenderer.enabled);
+            Assert.IsFalse(initiallyVisible, "Grid should be hidden by default -- only an explicit G press reveals it.");
 
             gridDisplay.SetVisible(true);
             Assert.IsTrue(meshRenderer.enabled);
+
+            gridDisplay.SetVisible(false);
+            Assert.IsFalse(meshRenderer.enabled);
         }
 
         [UnityTest]

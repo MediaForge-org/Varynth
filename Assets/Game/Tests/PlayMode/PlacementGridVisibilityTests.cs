@@ -163,6 +163,117 @@ namespace Varynth.Tests.PlayMode
             AssertVisibleGridCount(gridsRoot, 0, "Player Placement Grids unaffected by toggling the debug grid");
         }
 
+        [UnityTest]
+        public IEnumerator DebugGrid_HiddenAtSceneStart_UntilExplicitGPress()
+        {
+            // Direct regression test for the real 0.2.2 bug: WorldInteractionController's
+            // _gridVisible field defaulted to true, so the Developer Debug Grid (a whole
+            // separate renderer from any Player Placement Grid, all of which were already
+            // correctly hidden) was visible the instant the scene loaded -- exactly the
+            // reported "fine grid stays visible with no tool active" symptom, confirmed via
+            // real instrumented renderer-state logging and a real captured screenshot before
+            // this fix. G must still fully control it; only the starting value changes.
+            LogAssert.ignoreFailingMessages = true;
+
+            yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
+            yield return null;
+            yield return null;
+
+            var debugGrid = GameObject.Find("Grid");
+            Assert.IsNotNull(debugGrid, "Expected a 'Grid' root GameObject.");
+            var debugGridRenderer = debugGrid.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(debugGridRenderer);
+
+            Assert.IsFalse(debugGridRenderer.enabled, "Debug Grid must be hidden at scene start, before any G press.");
+
+            PressAndRelease(_keyboard.gKey);
+            yield return null;
+            Assert.IsTrue(debugGridRenderer.enabled, "First G press must reveal the Debug Grid.");
+
+            PressAndRelease(_keyboard.gKey);
+            yield return null;
+            Assert.IsFalse(debugGridRenderer.enabled, "Second G press must hide the Debug Grid again.");
+        }
+
+        [UnityTest]
+        public IEnumerator F2AndF3Toggles_NeverActivatePlacementGrids()
+        {
+            // Mandated independence check: the F2 surface-debug overlay and F3
+            // resource-candidate overlay are separate developer systems and must never,
+            // in either direction, enable any Player Placement Grid renderer.
+            LogAssert.ignoreFailingMessages = true;
+
+            yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
+            yield return null;
+            yield return null;
+
+            var gridsRoot = GameObject.Find("PlacementGrids");
+            Assert.IsNotNull(gridsRoot);
+            AssertVisibleGridCount(gridsRoot, 0, "before any F2/F3 toggle");
+
+            PressAndRelease(_keyboard.f2Key);
+            yield return null;
+            AssertVisibleGridCount(gridsRoot, 0, "F2 toggled on");
+
+            PressAndRelease(_keyboard.f2Key);
+            yield return null;
+            AssertVisibleGridCount(gridsRoot, 0, "F2 toggled off");
+
+            PressAndRelease(_keyboard.f3Key);
+            yield return null;
+            AssertVisibleGridCount(gridsRoot, 0, "F3 toggled on");
+
+            PressAndRelease(_keyboard.f3Key);
+            yield return null;
+            AssertVisibleGridCount(gridsRoot, 0, "F3 toggled off");
+        }
+
+        [UnityTest]
+        public IEnumerator EscapeFromEitherTool_NoDelayedReEnableAcrossMultipleFrames()
+        {
+            // Explicit requirement: not just the same frame, or two frames -- a later
+            // Update() on some controller must not silently re-enable a grid several
+            // frames after Escape settled the state back to None.
+            LogAssert.ignoreFailingMessages = true;
+
+            yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
+            yield return null;
+            yield return null;
+
+            var worldInteraction = Object.FindFirstObjectByType<WorldInteractionController>();
+            var camera = Camera.main;
+            var gridsRoot = GameObject.Find("PlacementGrids");
+
+            var height = worldInteraction.HeightSource.TryGetHeight(0f, 0f, out var y) ? y : 0f;
+            var screenPoint = camera.WorldToScreenPoint(new Vector3(0f, height, 0f));
+            Set(_mouse.position, new Vector2(screenPoint.x, screenPoint.y));
+            yield return null;
+
+            PressAndRelease(_keyboard.digit1Key);
+            yield return null; yield return null;
+            AssertVisibleGridCount(gridsRoot, 1, "Building tool active");
+
+            PressAndRelease(_keyboard.escapeKey);
+            yield return null; yield return null;
+            for (var i = 0; i < 8; i++)
+            {
+                yield return null;
+                AssertVisibleGridCount(gridsRoot, 0, $"frame {i} after Escape from Building");
+            }
+
+            PressAndRelease(_keyboard.digit4Key);
+            yield return null; yield return null;
+            AssertVisibleGridCount(gridsRoot, 1, "Road tool active");
+
+            PressAndRelease(_keyboard.escapeKey);
+            yield return null; yield return null;
+            for (var i = 0; i < 8; i++)
+            {
+                yield return null;
+                AssertVisibleGridCount(gridsRoot, 0, $"frame {i} after Escape from Road");
+            }
+        }
+
         private static void AssertVisibleGridCount(GameObject gridsRoot, int expectedCount, string context)
         {
             var actual = CountVisibleGrids(gridsRoot);

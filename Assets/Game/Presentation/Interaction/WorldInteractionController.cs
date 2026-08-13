@@ -39,7 +39,15 @@ namespace Varynth.Presentation.Interaction
         private WorldGrid _grid;
         private IWorldHeightSource _heightSource;
         private WorldPointer _pointer;
-        private bool _gridVisible = true;
+        // Starts hidden (0.2.2 hotfix): real runtime diagnosis (instrumented render-
+        // state logging + a real captured screenshot) proved the reported "fine grid
+        // stays visible on the island with no tool active" bug was this Developer
+        // Debug Grid, not the Player Placement Grid (which was already correctly
+        // hidden in every tested state). Defaulting true meant the grid was visible
+        // the instant the scene loaded, before any G press -- the exact symptom
+        // reported. G still fully, exclusively controls this field/grid; only the
+        // starting value changes.
+        private bool _gridVisible;
         private bool _surfaceOverlayVisible;
         private bool _resourceOverlayVisible;
 
@@ -89,6 +97,15 @@ namespace Varynth.Presentation.Interaction
                 }
             }
             _pointer = new WorldPointer(_grid, colliderList);
+
+            // Verified-hidden runtime baseline (0.2.2 hotfix), independent of whatever
+            // the saved scene asset's renderer.enabled default happens to be -- mirrors
+            // the same principle ConstructionToolCoordinatorHost already applies to the
+            // Player Placement Grids, applied here to the Debug Grid.
+            if (_gridDisplay != null)
+            {
+                _gridDisplay.SetVisible(_gridVisible);
+            }
         }
 
         private void Update()
