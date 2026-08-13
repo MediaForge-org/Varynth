@@ -4,12 +4,19 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using Varynth.Presentation;
 using Varynth.Presentation.Interaction;
 using Varynth.Presentation.Roads;
 
 namespace Varynth.Tests.PlayMode
 {
     // Real simulated Keyboard/Mouse via InputTestFixture -- not direct method calls.
+    // Phase 2E: confirmed build/remove now lands on the simulation's next tick, not
+    // synchronously -- each test forces it deterministically via
+    // driver.Simulation.AdvanceTicks(1) rather than relying on real elapsed frame
+    // time reaching the fixed tick rate. Segment counts are read from
+    // GetSnapshot().Roads (RoadPlacementController no longer holds a live
+    // RoadNetworkState to query directly).
     public class RoadAcceptanceTests : InputTestFixture
     {
         private const string SceneName = "WorldPrototype";
@@ -35,9 +42,11 @@ namespace Varynth.Tests.PlayMode
 
             var controller = Object.FindFirstObjectByType<RoadPlacementController>();
             var worldInteraction = Object.FindFirstObjectByType<WorldInteractionController>();
+            var driver = Object.FindFirstObjectByType<UnitySimulationDriver>();
             var camera = Camera.main;
             Assert.IsNotNull(controller);
             Assert.IsNotNull(worldInteraction);
+            Assert.IsNotNull(driver);
 
             Assert.IsFalse(controller.IsActive, "Should start with the Road tool inactive");
 
@@ -46,7 +55,7 @@ namespace Varynth.Tests.PlayMode
             yield return null;
             Assert.IsTrue(controller.IsActive, "Expected the Road tool active after pressing 4");
 
-            var segmentCountBefore = CountSegments(controller);
+            var segmentCountBefore = CountSegments(driver);
 
             yield return HoverWorldPosition(camera, worldInteraction, -20f, 0f);
             PressAndRelease(_mouse.leftButton); // sets start
@@ -62,9 +71,11 @@ namespace Varynth.Tests.PlayMode
 
             PressAndRelease(_mouse.leftButton); // confirms
             yield return null;
+            driver.Simulation.AdvanceTicks(1);
+            yield return null;
             yield return null;
 
-            var segmentCountAfter = CountSegments(controller);
+            var segmentCountAfter = CountSegments(driver);
             Assert.Greater(segmentCountAfter, segmentCountBefore, "Confirming the route should add real segments to the road graph");
             Assert.IsFalse(previewRenderer.enabled, "Preview should hide after a confirmed build (back to no start cell)");
         }
@@ -80,13 +91,14 @@ namespace Varynth.Tests.PlayMode
 
             var controller = Object.FindFirstObjectByType<RoadPlacementController>();
             var worldInteraction = Object.FindFirstObjectByType<WorldInteractionController>();
+            var driver = Object.FindFirstObjectByType<UnitySimulationDriver>();
             var camera = Camera.main;
 
             PressAndRelease(_keyboard.digit4Key);
             yield return null;
             yield return null;
 
-            var segmentCountBefore = CountSegments(controller);
+            var segmentCountBefore = CountSegments(driver);
 
             yield return HoverWorldPosition(camera, worldInteraction, -20f, 0f);
             PressAndRelease(_mouse.leftButton); // sets start
@@ -97,7 +109,7 @@ namespace Varynth.Tests.PlayMode
             yield return null;
             yield return null;
 
-            Assert.AreEqual(segmentCountBefore, CountSegments(controller), "Escape before confirm must not change the road graph");
+            Assert.AreEqual(segmentCountBefore, CountSegments(driver), "Escape before confirm must not change the road graph");
 
             PressAndRelease(_keyboard.escapeKey); // second Escape deselects the tool entirely
             yield return null;
@@ -116,6 +128,7 @@ namespace Varynth.Tests.PlayMode
 
             var controller = Object.FindFirstObjectByType<RoadPlacementController>();
             var worldInteraction = Object.FindFirstObjectByType<WorldInteractionController>();
+            var driver = Object.FindFirstObjectByType<UnitySimulationDriver>();
             var camera = Camera.main;
 
             PressAndRelease(_keyboard.digit4Key);
@@ -129,9 +142,11 @@ namespace Varynth.Tests.PlayMode
             yield return HoverWorldPosition(camera, worldInteraction, -12f, 0f);
             PressAndRelease(_mouse.leftButton);
             yield return null;
+            driver.Simulation.AdvanceTicks(1);
+            yield return null;
             yield return null;
 
-            var segmentCountAfterBuild = CountSegments(controller);
+            var segmentCountAfterBuild = CountSegments(driver);
             Assert.Greater(segmentCountAfterBuild, 0);
 
             // Deselect the tool entirely (coordinator mode None) before removal is allowed.
@@ -143,9 +158,11 @@ namespace Varynth.Tests.PlayMode
             yield return HoverWorldPosition(camera, worldInteraction, -20f, 0f);
             PressAndRelease(_keyboard.deleteKey);
             yield return null;
+            driver.Simulation.AdvanceTicks(1);
+            yield return null;
             yield return null;
 
-            Assert.Less(CountSegments(controller), segmentCountAfterBuild, "Delete while no tool is active should remove the hovered segment");
+            Assert.Less(CountSegments(driver), segmentCountAfterBuild, "Delete while no tool is active should remove the hovered segment");
         }
 
         private IEnumerator HoverWorldPosition(Camera camera, WorldInteractionController worldInteraction, float worldX, float worldZ)
@@ -158,15 +175,9 @@ namespace Varynth.Tests.PlayMode
             yield return null;
         }
 
-        private static int CountSegments(RoadPlacementController controller)
+        private static int CountSegments(UnitySimulationDriver driver)
         {
-            var total = 0;
-            for (var i = 0; i < controller.State.IslandCount; i++)
-            {
-                total += controller.State.GetGraph(i).Segments.Count;
-            }
-
-            return total;
+            return driver.Simulation.GetSnapshot().Roads.Count;
         }
     }
 }

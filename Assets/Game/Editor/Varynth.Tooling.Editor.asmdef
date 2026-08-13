@@ -3,6 +3,7 @@
     "rootNamespace": "Varynth.Tooling.Editor",
     "references": [
         "Varynth.Core.Definitions",
+        "Varynth.Core.Simulation",
         "Varynth.World",
         "Varynth.Presentation",
         "Unity.InputSystem",

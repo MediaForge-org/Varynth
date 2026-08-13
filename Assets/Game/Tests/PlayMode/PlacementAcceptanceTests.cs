@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using Varynth.Presentation;
 using Varynth.Presentation.Interaction;
 using Varynth.Presentation.Placement;
 
@@ -43,9 +44,11 @@ namespace Varynth.Tests.PlayMode
 
             var controller = Object.FindFirstObjectByType<PlacementController>();
             var worldInteraction = Object.FindFirstObjectByType<WorldInteractionController>();
+            var driver = Object.FindFirstObjectByType<UnitySimulationDriver>();
             var camera = Camera.main;
             Assert.IsNotNull(controller, "PlacementController missing from scene");
             Assert.IsNotNull(worldInteraction, "WorldInteractionController missing from scene");
+            Assert.IsNotNull(driver, "UnitySimulationDriver missing from scene");
             Assert.IsNotNull(camera, "Main Camera missing");
 
             Assert.IsFalse(controller.IsPlacing, "Should start Idle");
@@ -84,9 +87,13 @@ namespace Varynth.Tests.PlayMode
             Assert.AreEqual(0f, previewTransform.eulerAngles.x, 0.01f, "Building preview must stay upright (no pitch)");
             Assert.AreEqual(0f, previewTransform.eulerAngles.z, 0.01f, "Building preview must stay upright (no roll)");
 
-            // Left click places the building.
+            // Left click places the building. Phase 2E: the command lands on the
+            // simulation's next tick, not synchronously -- force it deterministically
+            // rather than relying on real elapsed frame time reaching the tick rate.
             var placedCountBefore = CountPlacedBuildings();
             PressAndRelease(_mouse.leftButton);
+            yield return null;
+            driver.Simulation.AdvanceTicks(1);
             yield return null;
             yield return null;
 
@@ -95,10 +102,12 @@ namespace Varynth.Tests.PlayMode
 
             var hoveredCell = worldInteraction.HoveredCell;
             Assert.IsTrue(hoveredCell.HasValue);
-            Assert.IsTrue(controller.State.TryGetOccupantAt(hoveredCell.Value, out _), "Occupancy should be set at the placed cell");
+            Assert.IsTrue(driver.Simulation.TryGetOccupantAt(hoveredCell.Value, out _), "Occupancy should be set at the placed cell");
 
             // Second click on the same footprint is rejected -- no second instance.
             PressAndRelease(_mouse.leftButton);
+            yield return null;
+            driver.Simulation.AdvanceTicks(1);
             yield return null;
             yield return null;
             Assert.AreEqual(placedCountAfterFirst, CountPlacedBuildings(), "A second placement on the same occupied footprint must be rejected");
@@ -128,6 +137,8 @@ namespace Varynth.Tests.PlayMode
             var placedCountBeforeB = CountPlacedBuildings();
             PressAndRelease(_mouse.leftButton);
             yield return null;
+            driver.Simulation.AdvanceTicks(1);
+            yield return null;
             yield return null;
             Assert.AreEqual(placedCountBeforeB + 1, CountPlacedBuildings(), "Placement on island B should succeed independently of island A");
 
@@ -136,6 +147,8 @@ namespace Varynth.Tests.PlayMode
             yield return HoverWorldPosition(camera, worldInteraction, 0f, 0f);
             var countBeforeDeleteWhilePlacing = CountPlacedBuildings();
             PressAndRelease(_keyboard.deleteKey);
+            yield return null;
+            driver.Simulation.AdvanceTicks(1);
             yield return null;
             yield return null;
             Assert.AreEqual(countBeforeDeleteWhilePlacing, CountPlacedBuildings(), "Delete must be ignored while actively placing");
@@ -148,6 +161,8 @@ namespace Varynth.Tests.PlayMode
 
             var countBeforeRealDelete = CountPlacedBuildings();
             PressAndRelease(_keyboard.deleteKey);
+            yield return null;
+            driver.Simulation.AdvanceTicks(1);
             yield return null;
             yield return null;
             Assert.AreEqual(countBeforeRealDelete - 1, CountPlacedBuildings(), "Delete in Idle mode should remove the hovered building");

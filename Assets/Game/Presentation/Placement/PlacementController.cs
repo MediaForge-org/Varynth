@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -7,14 +6,12 @@ using UnityEngine.UI;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions.Buildings;
 using Varynth.Core.Registry;
+using Varynth.Core.Simulation.Boundary;
 using Varynth.Core.Simulation.Building;
-using Varynth.Core.Simulation.Clock;
-using Varynth.Core.Simulation.Common;
 using Varynth.Data.Loading;
 using Varynth.Presentation.Interaction;
 using Varynth.Presentation.Visualization;
 using Varynth.World.Placement;
-using Varynth.World.Roads;
 
 namespace Varynth.Presentation.Placement
 {
@@ -23,12 +20,20 @@ namespace Varynth.Presentation.Placement
     /// single/drag placement, and removal. Reads input via the same Keyboard/Mouse
     /// device-polling idiom as WorldInteractionController/StrategyCameraController
     /// (no .inputactions asset). Reuses WorldInteractionController's already-built
-    /// WorldGrid/IWorldHeightSource/hover cell instead of re-raycasting. World state
-    /// (ArchipelagoPlacementState) is built here from runtime-safe data
-    /// (IslandSurfaceRuntimeData + Terrain), never from any Varynth.Tooling.Editor
-    /// type. Tool activation/cancellation and Player Placement Grid visibility are
-    /// arbitrated through ConstructionToolCoordinator, never by reaching into
-    /// RoadPlacementController directly (Phase 2D).
+    /// WorldGrid/IWorldHeightSource/hover cell instead of re-raycasting.
+    ///
+    /// Phase 2E: no longer owns/constructs ArchipelagoPlacementState itself -- the
+    /// single authoritative instance lives inside ManagedSimulation, owned by
+    /// UnitySimulationDriver (found here in Start(), same idiom already used for
+    /// ConstructionToolCoordinatorHost). Ghost/drag preview still validates locally
+    /// via ISimulationPlacementQueries (read-only, never mutates). Confirmed
+    /// placement/removal goes through ISimulation.Submit(...) -- the command is
+    /// queued, not applied synchronously; the resulting GameObject appears once
+    /// UnitySimulationDriver's next tick(s) run and this controller's snapshot diff
+    /// notices the new/removed BuildingRenderSnapshot entry. Still reads
+    /// ContentRegistry&lt;BuildingDefinition&gt; directly -- content Definitions are
+    /// read-only reference data, not authoritative simulation state, so Presentation
+    /// reading them directly does not cross the simulation boundary.
     /// </summary>
     public sealed class PlacementController : MonoBehaviour, ConstructionToolCoordinator.IConstructionTool
     {
@@ -39,7 +44,6 @@ namespace Varynth.Presentation.Placement
         }
 
         [SerializeField] private WorldInteractionController _worldInteraction;
-        [SerializeField] private IslandSurfaceRuntimeData[] _islandSurfaceData;
         [SerializeField] private PlacementGhostDisplay _ghost;
         [SerializeField] private DragPreviewDisplay _dragPreview;
         [SerializeField] private PrototypeBuildingVisualCatalog _visualCatalog;
@@ -52,11 +56,9 @@ namespace Varynth.Presentation.Placement
 
         private ConstructionToolCoordinator _coordinator;
         private PlacementMode _mode = PlacementMode.Idle;
-        private ArchipelagoPlacementState _state;
         private ContentRegistry<BuildingDefinition> _registry;
-        private BuildingPlacementCommandHandler _commandHandler;
-        private IRoadOccupancyQuery _roadOccupancy;
-        private PlayerId _localPlayerId;
+        private ISimulation _simulation;
+        private ISimulationPlacementQueries _placementQueries;
         private ContentId _selectedDefinitionId;
         private BuildingRotation _rotation = BuildingRotation.Deg0;
         private int _hoveredIslandIndex = -1;
@@ -64,8 +66,8 @@ namespace Varynth.Presentation.Placement
         private (GridCoordinate cell, BuildingRotation rotation, ContentId definitionId, bool isValid)? _lastGhostState;
         private GridCoordinate? _dragStartCell;
         private GridCoordinate? _lastDragEnd;
+        private int _lastAppliedBuildingStateVersion = int.MinValue;
 
-        public ArchipelagoPlacementState State => _state;
         public ContentRegistry<BuildingDefinition> Registry => _registry;
         public bool IsPlacing => _mode == PlacementMode.Placing;
 
@@ -77,22 +79,8 @@ namespace Varynth.Presentation.Placement
 
         private void Awake()
         {
-            _state = new ArchipelagoPlacementState(_worldInteraction.Grid);
-
-            var terrains = _worldInteraction.Terrains ?? Array.Empty<UnityEngine.Terrain>();
-            var surfaceData = _islandSurfaceData ?? Array.Empty<IslandSurfaceRuntimeData>();
-            var islandCount = Mathf.Min(terrains.Length, surfaceData.Length);
-            for (var i = 0; i < islandCount; i++)
-            {
-                if (terrains[i] != null && surfaceData[i] != null)
-                {
-                    _state.AddIsland(surfaceData[i], terrains[i]);
-                }
-            }
-
             var contentRoot = Path.Combine(Application.streamingAssetsPath, "Content", "Buildings");
             _registry = BuildingContentBootstrap.LoadRegistry(contentRoot);
-            _localPlayerId = PlayerId.NewId();
 
             if (_houseButton != null) _houseButton.onClick.AddListener(() => SelectBuilding("bld.prototype.house"));
             if (_productionBlockButton != null) _productionBlockButton.onClick.AddListener(() => SelectBuilding("bld.prototype.production_block"));
@@ -113,25 +101,84 @@ namespace Varynth.Presentation.Placement
                 }
             }
 
-            // Cross-wiring happens in Start (after every Awake ran) -- the two
-            // world-state systems never reference each other directly; only the
-            // small read-only query interface is composed here, by the one place
-            // that legitimately knows about both. The same instance is used for
-            // both the ghost-preview validation call and every command-application
-            // TryPlace call, so preview and final placement never diverge.
-            var roadController = FindFirstObjectByType<Varynth.Presentation.Roads.RoadPlacementController>();
-            _roadOccupancy = roadController != null ? roadController.State : null;
-            _commandHandler = new BuildingPlacementCommandHandler(_state, _registry, _roadOccupancy);
+            // Cross-wiring happens in Start (after every Awake ran). Phase 2E: both
+            // PlacementController and RoadPlacementController now only ever reach for
+            // the shared UnitySimulationDriver -- never for each other directly.
+            var driver = FindFirstObjectByType<UnitySimulationDriver>();
+            if (driver != null)
+            {
+                _simulation = driver.Simulation;
+                _placementQueries = driver.Simulation;
+            }
         }
 
         private void Update()
         {
+            SyncPresentationWithSnapshot();
             UpdateBuildingSelectionHotkeys();
             UpdateRotation();
             UpdateHoveredIslandAndGrids();
             UpdateGhostOrDragPreview();
             UpdatePlaceOrDragOrCancel();
             UpdateRemoval();
+        }
+
+        /// <summary>
+        /// Reconciles spawned GameObjects against the latest BuildingRenderSnapshot
+        /// list -- the sole place GameObjects are spawned/destroyed. Gated on
+        /// BuildingStateVersion (Phase 2E point 5), not Tick, so a tick with no real
+        /// building change costs only the version-compare + snapshot-reference read.
+        /// GameObjects are a cached rendering of the snapshot, never the source of
+        /// truth (Phase 2E point 26) -- removal below no longer destroys anything
+        /// itself, it only submits a command and waits for this method to notice.
+        /// </summary>
+        private void SyncPresentationWithSnapshot()
+        {
+            if (_simulation == null)
+            {
+                return;
+            }
+
+            var snapshot = _simulation.GetSnapshot();
+            if (snapshot.BuildingStateVersion == _lastAppliedBuildingStateVersion)
+            {
+                return;
+            }
+
+            _lastAppliedBuildingStateVersion = snapshot.BuildingStateVersion;
+            _lastGhostState = null; // occupancy may have changed -- force ghost re-evaluation
+
+            var seen = new HashSet<BuildingInstanceId>();
+            foreach (var entry in snapshot.Buildings)
+            {
+                seen.Add(entry.InstanceId);
+                if (!_instanceGameObjects.ContainsKey(entry.InstanceId))
+                {
+                    SpawnPresentationForSnapshotEntry(entry);
+                }
+            }
+
+            List<BuildingInstanceId> toRemove = null;
+            foreach (var kvp in _instanceGameObjects)
+            {
+                if (!seen.Contains(kvp.Key))
+                {
+                    (toRemove ??= new List<BuildingInstanceId>()).Add(kvp.Key);
+                }
+            }
+
+            if (toRemove != null)
+            {
+                foreach (var id in toRemove)
+                {
+                    if (_instanceGameObjects.TryGetValue(id, out var go) && go != null)
+                    {
+                        Destroy(go);
+                    }
+
+                    _instanceGameObjects.Remove(id);
+                }
+            }
         }
 
         private void UpdateBuildingSelectionHotkeys()
@@ -205,7 +252,7 @@ namespace Varynth.Presentation.Placement
 
             var hoveredCell = _worldInteraction.HoveredCell;
             var newIndex = -1;
-            if (hoveredCell.HasValue && _state.TryFindIslandIndex(hoveredCell.Value, out var index))
+            if (hoveredCell.HasValue && _placementQueries != null && _placementQueries.TryFindIslandIndex(hoveredCell.Value, out var index))
             {
                 newIndex = index;
             }
@@ -243,7 +290,7 @@ namespace Varynth.Presentation.Placement
 
         private void UpdateSingleGhost(BuildingDefinition definition)
         {
-            if (_ghost == null)
+            if (_ghost == null || _placementQueries == null)
             {
                 return;
             }
@@ -257,7 +304,7 @@ namespace Varynth.Presentation.Placement
             }
 
             var cell = hoveredCell.Value;
-            var validation = _state.ValidatePlacementAt(_selectedDefinitionId, cell, _rotation, _registry, _roadOccupancy);
+            var validation = _placementQueries.ValidateBuildingPlacement(_selectedDefinitionId, cell, _rotation);
 
             var key = (cell, _rotation, _selectedDefinitionId, validation.IsValid);
             if (_lastGhostState.HasValue && _lastGhostState.Value.Equals(key))
@@ -285,7 +332,7 @@ namespace Varynth.Presentation.Placement
 
         private void UpdateDragPreview(BuildingDefinition definition)
         {
-            if (_dragPreview == null)
+            if (_dragPreview == null || _placementQueries == null)
             {
                 return;
             }
@@ -310,7 +357,7 @@ namespace Varynth.Presentation.Placement
             var plans = new List<(GridCoordinate, bool)>(origins.Count);
             foreach (var origin in origins)
             {
-                var validation = _state.ValidatePlacementAt(_selectedDefinitionId, origin, _rotation, _registry, _roadOccupancy);
+                var validation = _placementQueries.ValidateBuildingPlacement(_selectedDefinitionId, origin, _rotation);
                 plans.Add((origin, validation.IsValid));
             }
 
@@ -376,22 +423,20 @@ namespace Varynth.Presentation.Placement
 
         private void CommitDrag(BuildingDefinition definition)
         {
-            var endCell = _worldInteraction.HoveredCell ?? _dragStartCell.Value;
-            var effectiveWidth = _rotation.SwapsWidthAndLength() ? definition.FootprintLength : definition.FootprintWidth;
-            var effectiveLength = _rotation.SwapsWidthAndLength() ? definition.FootprintWidth : definition.FootprintLength;
-            var origins = BuildingRepeatPlanner.PlanOrigins(_dragStartCell.Value, endCell, effectiveWidth, effectiveLength);
-
-            var batch = new PlaceBuildingBatchCommand(_localPlayerId, GameTick.Zero, _selectedDefinitionId, _rotation, origins);
-            _commandHandler.Handle(batch, out var placed, out _);
-            foreach (var instance in placed)
+            if (_simulation != null)
             {
-                SpawnPresentationForInstance(instance);
+                var endCell = _worldInteraction.HoveredCell ?? _dragStartCell.Value;
+                var effectiveWidth = _rotation.SwapsWidthAndLength() ? definition.FootprintLength : definition.FootprintWidth;
+                var effectiveLength = _rotation.SwapsWidthAndLength() ? definition.FootprintWidth : definition.FootprintLength;
+                var origins = BuildingRepeatPlanner.PlanOrigins(_dragStartCell.Value, endCell, effectiveWidth, effectiveLength);
+
+                var batch = new PlaceBuildingBatchCommand(_simulation.LocalPlayerId, _simulation.CurrentTick, _selectedDefinitionId, _rotation, origins);
+                _simulation.Submit(batch);
             }
 
             _dragStartCell = null;
             _lastDragEnd = null;
             if (_dragPreview != null) _dragPreview.Hide();
-            _lastGhostState = null; // occupancy changed -- force ghost re-evaluation
         }
 
         public void CancelTool()
@@ -407,23 +452,24 @@ namespace Varynth.Presentation.Placement
 
         private void TryPlaceAtHoveredCell()
         {
+            if (_simulation == null)
+            {
+                return;
+            }
+
             var hoveredCell = _worldInteraction.HoveredCell;
             if (!hoveredCell.HasValue)
             {
                 return;
             }
 
-            var command = new PlaceBuildingCommand(_localPlayerId, GameTick.Zero, _selectedDefinitionId, hoveredCell.Value, _rotation);
-            if (_commandHandler.Handle(command, out var instance, out _))
-            {
-                SpawnPresentationForInstance(instance);
-                _lastGhostState = null; // occupancy changed under the cursor -- force re-evaluation
-            }
+            var command = new PlaceBuildingCommand(_simulation.LocalPlayerId, _simulation.CurrentTick, _selectedDefinitionId, hoveredCell.Value, _rotation);
+            _simulation.Submit(command);
         }
 
-        private void SpawnPresentationForInstance(BuildingInstance instance)
+        private void SpawnPresentationForSnapshotEntry(BuildingRenderSnapshot entry)
         {
-            if (!_registry.TryGet(instance.DefinitionId, out var definition))
+            if (!_registry.TryGet(entry.DefinitionId, out var definition))
             {
                 return;
             }
@@ -435,7 +481,7 @@ namespace Varynth.Presentation.Placement
                 _visualCatalog.TryGetVisual(definition.PrototypeVisualId, out mesh, out material);
             }
 
-            var go = new GameObject($"Building_{instance.Id}");
+            var go = new GameObject($"Building_{entry.InstanceId}");
             if (_placedBuildingsRoot != null)
             {
                 go.transform.SetParent(_placedBuildingsRoot, false);
@@ -446,14 +492,14 @@ namespace Varynth.Presentation.Placement
             var meshRenderer = go.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterial = material;
 
-            var effectiveWidth = instance.Rotation.SwapsWidthAndLength() ? definition.FootprintLength : definition.FootprintWidth;
-            var effectiveLength = instance.Rotation.SwapsWidthAndLength() ? definition.FootprintWidth : definition.FootprintLength;
+            var effectiveWidth = entry.Rotation.SwapsWidthAndLength() ? definition.FootprintLength : definition.FootprintWidth;
+            var effectiveLength = entry.Rotation.SwapsWidthAndLength() ? definition.FootprintWidth : definition.FootprintLength;
             var (position, rotation, scale) = PlacementPresentationMath.ComputeBuildingTransform(
-                instance.Origin, effectiveWidth, effectiveLength, instance.Rotation, _worldInteraction.Grid, _worldInteraction.HeightSource);
+                entry.Origin, effectiveWidth, effectiveLength, entry.Rotation, _worldInteraction.Grid, _worldInteraction.HeightSource);
             go.transform.SetPositionAndRotation(position, rotation);
             go.transform.localScale = scale;
 
-            _instanceGameObjects[instance.Id] = go;
+            _instanceGameObjects[entry.InstanceId] = go;
         }
 
         // Removal only when no construction tool is active at all (adjustment 5,
@@ -461,11 +507,14 @@ namespace Varynth.Presentation.Placement
         // actively placing/routing, so Delete can't accidentally remove an existing
         // building mid-placement. Safe to check independently of
         // RoadPlacementController's own Delete handling: a cell is either building-
-        // or road-occupied, never both.
+        // or road-occupied, never both. Phase 2E: only submits the command -- the
+        // GameObject disappears via SyncPresentationWithSnapshot once the removal
+        // actually lands, never destroyed directly here.
         private void UpdateRemoval()
         {
             if (_mode != PlacementMode.Idle
-                || (_coordinator != null && _coordinator.ActiveMode != ConstructionToolCoordinator.ConstructionToolMode.None))
+                || (_coordinator != null && _coordinator.ActiveMode != ConstructionToolCoordinator.ConstructionToolMode.None)
+                || _simulation == null || _placementQueries == null)
             {
                 return;
             }
@@ -477,24 +526,13 @@ namespace Varynth.Presentation.Placement
             }
 
             var hoveredCell = _worldInteraction.HoveredCell;
-            if (!hoveredCell.HasValue || !_state.TryGetOccupantAt(hoveredCell.Value, out var occupant))
+            if (!hoveredCell.HasValue || !_placementQueries.TryGetOccupantAt(hoveredCell.Value, out var occupant))
             {
                 return;
             }
 
-            var command = new RemoveBuildingCommand(_localPlayerId, GameTick.Zero, occupant);
-            if (_commandHandler.Handle(command, out var removed))
-            {
-                if (_instanceGameObjects.TryGetValue(removed.Id, out var go))
-                {
-                    if (go != null)
-                    {
-                        Destroy(go);
-                    }
-
-                    _instanceGameObjects.Remove(removed.Id);
-                }
-            }
+            var command = new RemoveBuildingCommand(_simulation.LocalPlayerId, _simulation.CurrentTick, occupant);
+            _simulation.Submit(command);
         }
     }
 }

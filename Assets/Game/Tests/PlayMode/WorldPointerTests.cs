@@ -51,7 +51,7 @@ namespace Varynth.Tests.PlayMode
             var colliders = FindAllTerrainColliders();
             Assert.GreaterOrEqual(colliders.Count, 2, "Expected multiple island terrain colliders in the scene.");
 
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var pointer = new WorldPointer(grid, colliders);
 
             var ray = new Ray(IslandLargeAbovePoint, Vector3.down);
@@ -64,8 +64,8 @@ namespace Varynth.Tests.PlayMode
             var cell = pointer.ToCell(worldPosition);
             var roundtrippedCenter = grid.CellToWorldCenter(cell);
 
-            Assert.Less(Mathf.Abs(roundtrippedCenter.x - worldPosition.x), 4f);
-            Assert.Less(Mathf.Abs(roundtrippedCenter.y - worldPosition.z), 4f);
+            Assert.Less(Mathf.Abs(roundtrippedCenter.X - worldPosition.x), 4f);
+            Assert.Less(Mathf.Abs(roundtrippedCenter.Z - worldPosition.z), 4f);
         }
 
         [UnityTest]
@@ -76,7 +76,7 @@ namespace Varynth.Tests.PlayMode
             yield return null;
 
             var colliders = FindAllTerrainColliders();
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var pointer = new WorldPointer(grid, colliders);
 
             var ray = new Ray(IslandMediumAbovePoint, Vector3.down);
@@ -95,7 +95,7 @@ namespace Varynth.Tests.PlayMode
             yield return null;
 
             var colliders = FindAllTerrainColliders();
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var pointer = new WorldPointer(grid, colliders);
 
             var ray = new Ray(OpenWaterAbovePoint, Vector3.down);
@@ -123,7 +123,7 @@ namespace Varynth.Tests.PlayMode
 
             try
             {
-                var grid = new WorldGrid(4f, Vector2.zero);
+                var grid = new WorldGrid(4f, (0f, 0f));
                 var pointer = new WorldPointer(grid, colliders);
 
                 var ray = new Ray(IslandLargeAbovePoint, Vector3.down);

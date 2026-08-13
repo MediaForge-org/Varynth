@@ -27,8 +27,8 @@ namespace Varynth.Tests.EditMode.World.Roads
             public bool IsCellOccupied(GridCoordinate cell) => _predicate(cell);
         }
 
-        private static WorldGrid Grid() => new WorldGrid(4f, Vector2.zero);
-        private static RectInt Bounds() => new RectInt(-20, -20, 40, 40);
+        private static WorldGrid Grid() => new WorldGrid(4f, (0f, 0f));
+        private static GridBounds Bounds() => new GridBounds(-20, -20, 40, 40);
 
         private static RoadDefinition Road() =>
             new RoadDefinition(ContentId.Parse("road.prototype.basic"), LocalizationKey.Parse("road.name"), "road", 1, true, false);

@@ -1,5 +1,4 @@
 using NUnit.Framework;
-using UnityEngine;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions;
 using Varynth.Core.Definitions.Buildings;
@@ -10,13 +9,13 @@ using Varynth.World.Grid;
 using Varynth.World.Placement;
 using Varynth.World.Roads;
 using Varynth.World.Surface;
+using Varynth.World.Terrain;
 
 namespace Varynth.Tests.EditMode.World.Roads
 {
+    // Phase 2E: fully headless -- no Terrain/GameObject/ScriptableObject needed.
     public class BuildingRoadConnectionQueryTests
     {
-        private GameObject _islandGo;
-        private UnityEngine.Terrain _island;
         private WorldGrid _grid;
         private ContentRegistry<RoadDefinition> _registry;
         private static readonly ContentId RoadId = ContentId.Parse("road.prototype.basic");
@@ -26,50 +25,27 @@ namespace Varynth.Tests.EditMode.World.Roads
         [SetUp]
         public void SetUp()
         {
-            _grid = new WorldGrid(4f, Vector2.zero);
-            _island = CreateFlatTerrain("Island", new Vector3(0f, -15f, 0f), 40f, out _islandGo);
+            _grid = new WorldGrid(4f, (0f, 0f));
             _registry = new ContentRegistry<RoadDefinition>();
             _registry.Register(new RoadDefinition(RoadId, LocalizationKey.Parse("road.name"), "road"));
         }
 
-        [TearDown]
-        public void TearDown()
+        private static SimulationIslandData CreateAllBuildableIslandData(string name, GridCoordinate origin, int width, int height)
         {
-            Object.DestroyImmediate(_islandGo);
-        }
-
-        private static UnityEngine.Terrain CreateFlatTerrain(string name, Vector3 position, float worldSize, out GameObject go)
-        {
-            var data = new TerrainData { heightmapResolution = 33, size = new Vector3(worldSize, 40f, worldSize) };
-            var heights = new float[33, 33];
-            for (var y = 0; y < 33; y++)
-            for (var x = 0; x < 33; x++)
-                heights[y, x] = 0.5f;
-            data.SetHeights(0, 0, heights);
-
-            go = new GameObject(name);
-            var terrain = go.AddComponent<UnityEngine.Terrain>();
-            terrain.terrainData = data;
-            go.transform.position = position;
-            return terrain;
-        }
-
-        private static IslandSurfaceRuntimeData CreateAllBuildableRuntimeData(GridCoordinate origin, int width, int height)
-        {
-            var data = ScriptableObject.CreateInstance<IslandSurfaceRuntimeData>();
-            var flags = new byte[width * height];
+            var flags = new SurfaceCellFlags[width * height];
             for (var i = 0; i < flags.Length; i++)
             {
-                flags[i] = (byte)(SurfaceCellFlags.Land | SurfaceCellFlags.Buildable);
+                flags[i] = SurfaceCellFlags.Land | SurfaceCellFlags.Buildable;
             }
-            data.SetData(origin.X, origin.Z, width, height, flags);
-            return data;
+            var cellHeights = new float[width * height];
+            return new SimulationIslandData(IslandId.FromName(name), name, origin.X, origin.Z, width, height, flags, cellHeights);
         }
 
         private RoadNetworkState BuildRoadState()
         {
             var state = new RoadNetworkState(_grid);
-            state.AddIsland(CreateAllBuildableRuntimeData(new GridCoordinate(0, 0), 20, 20), _island);
+            var islandData = CreateAllBuildableIslandData("Island", new GridCoordinate(0, 0), 20, 20);
+            state.AddIsland(islandData, new DenseGridHeightSource(_grid, 0, 0, 20, 20, islandData.CellHeights));
             return state;
         }
 
@@ -142,17 +118,14 @@ namespace Varynth.Tests.EditMode.World.Roads
         public void DifferentIsland_NeverConnected()
         {
             var roads = new RoadNetworkState(_grid);
-            var otherGo = new GameObject("Other");
-            var otherIsland = CreateFlatTerrain("OtherIsland", new Vector3(500f, -15f, 500f), 40f, out otherGo);
-            roads.AddIsland(CreateAllBuildableRuntimeData(new GridCoordinate(150, 150), 10, 10), otherIsland);
+            var otherIslandData = CreateAllBuildableIslandData("OtherIsland", new GridCoordinate(150, 150), 10, 10);
+            roads.AddIsland(otherIslandData, new DenseGridHeightSource(_grid, 150, 150, 10, 10, otherIslandData.CellHeights));
             roads.TryBuildPath(RoadId, new[] { new GridCoordinate(152, 150), new GridCoordinate(153, 150) }, PlayerId.None, _registry, null, out _, out _);
 
             // House at origin (0,0) is on a completely different island footprint --
             // no island registered there at all in this fixture's RoadNetworkState.
             var instance = HouseAt(new GridCoordinate(0, 0));
             Assert.IsFalse(BuildingRoadConnectionQuery.IsConnected(instance, House, roads));
-
-            Object.DestroyImmediate(otherGo);
         }
     }
 }

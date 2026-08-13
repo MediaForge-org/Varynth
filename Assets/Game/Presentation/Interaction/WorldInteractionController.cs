@@ -74,7 +74,7 @@ namespace Varynth.Presentation.Interaction
 
         private void Awake()
         {
-            _grid = new WorldGrid(_cellSize, _gridOrigin);
+            _grid = new WorldGrid(_cellSize, (_gridOrigin.x, _gridOrigin.y));
 
             var terrains = _terrains ?? System.Array.Empty<UnityEngine.Terrain>();
             var terrainSources = new List<UnityTerrainHeightSource>(terrains.Length);

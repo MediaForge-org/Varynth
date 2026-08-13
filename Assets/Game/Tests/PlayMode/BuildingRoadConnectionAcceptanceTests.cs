@@ -4,10 +4,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using Varynth.Presentation;
 using Varynth.Presentation.Interaction;
-using Varynth.Presentation.Placement;
-using Varynth.Presentation.Roads;
-using Varynth.World.Roads;
 
 namespace Varynth.Tests.PlayMode
 {
@@ -15,6 +13,10 @@ namespace Varynth.Tests.PlayMode
     // to a real placed road reports connected (and not before the road exists) --
     // the bulk of connection-logic edge cases live in the faster
     // BuildingRoadConnectionQueryTests (EditMode).
+    //
+    // Phase 2E: reads connectivity through ISimulationPlacementQueries.
+    // IsBuildingConnectedToRoad (an authoritative-state-derived read), never a live
+    // RoadNetworkState -- Presentation no longer holds one.
     public class BuildingRoadConnectionAcceptanceTests : InputTestFixture
     {
         private const string SceneName = "WorldPrototype";
@@ -38,10 +40,10 @@ namespace Varynth.Tests.PlayMode
             yield return null;
             yield return null;
 
-            var buildingController = Object.FindFirstObjectByType<PlacementController>();
-            var roadController = Object.FindFirstObjectByType<RoadPlacementController>();
+            var driver = Object.FindFirstObjectByType<UnitySimulationDriver>();
             var worldInteraction = Object.FindFirstObjectByType<WorldInteractionController>();
             var camera = Camera.main;
+            var simulation = driver.Simulation;
 
             // Place a house at world (0,0).
             yield return HoverWorldPosition(camera, worldInteraction, 0f, 0f);
@@ -51,13 +53,12 @@ namespace Varynth.Tests.PlayMode
             var hoveredCell = worldInteraction.HoveredCell.Value;
             PressAndRelease(_mouse.leftButton);
             yield return null;
+            driver.Simulation.AdvanceTicks(1); // force the placement to land deterministically, not relying on real elapsed frame time reaching the fixed tick rate
+            yield return null;
             yield return null;
 
-            buildingController.State.TryGetOccupantAt(hoveredCell, out var instanceId);
-            buildingController.State.TryGetInstance(instanceId, out var instance);
-            buildingController.Registry.TryGet(instance.DefinitionId, out var definition);
-
-            Assert.IsFalse(BuildingRoadConnectionQuery.IsConnected(instance, definition, roadController.State), "No road exists yet -- must report not connected.");
+            Assert.IsTrue(simulation.TryGetOccupantAt(hoveredCell, out var instanceId), "Expected the house to have landed at the hovered cell by now.");
+            Assert.IsFalse(simulation.IsBuildingConnectedToRoad(instanceId), "No road exists yet -- must report not connected.");
 
             PressAndRelease(_keyboard.escapeKey);
             yield return null;
@@ -77,9 +78,11 @@ namespace Varynth.Tests.PlayMode
             yield return HoverWorldPosition(camera, worldInteraction, 13f, 0f);
             PressAndRelease(_mouse.leftButton);
             yield return null;
+            driver.Simulation.AdvanceTicks(1); // force the road build to land deterministically
+            yield return null;
             yield return null;
 
-            Assert.IsTrue(BuildingRoadConnectionQuery.IsConnected(instance, definition, roadController.State), "A real adjacent road should now report the building as connected.");
+            Assert.IsTrue(simulation.IsBuildingConnectedToRoad(instanceId), "A real adjacent road should now report the building as connected.");
         }
 
         private IEnumerator HoverWorldPosition(Camera camera, WorldInteractionController worldInteraction, float worldX, float worldZ)

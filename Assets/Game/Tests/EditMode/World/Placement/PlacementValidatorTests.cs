@@ -20,7 +20,7 @@ namespace Varynth.Tests.EditMode.World.Placement
             public bool TryGetHeight(float worldX, float worldZ, out float height) { height = _fn(worldX, worldZ); return true; }
         }
 
-        private static WorldGrid Grid() => new WorldGrid(4f, Vector2.zero);
+        private static WorldGrid Grid() => new WorldGrid(4f, (0f, 0f));
 
         private static BuildingDefinition House(bool allowsCoast = false) =>
             new BuildingDefinition(ContentId.Parse("bld.prototype.house"), LocalizationKey.Parse("bld.house.name"), 2, 2, "house", allowsCoast);

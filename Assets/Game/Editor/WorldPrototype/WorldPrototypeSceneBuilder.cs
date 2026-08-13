@@ -130,7 +130,7 @@ namespace Varynth.Tooling.Editor.WorldPrototype
         public static void Build()
         {
             var scene = OpenOrCreateScene();
-            var grid = new WorldGrid(CellSize, Vector2.zero);
+            var grid = new WorldGrid(CellSize, (0f, 0f));
 
             var worldRoot = FindOrCreateRoot("World");
             RemoveLegacySingleIsland(worldRoot);
@@ -178,6 +178,9 @@ namespace Varynth.Tooling.Editor.WorldPrototype
                 highlight,
                 surfaceDisplays,
                 resourceMarkers);
+
+            var simulationRoot = FindOrCreateRoot("Simulation");
+            BuildSimulationDriver(simulationRoot, worldInteraction, islandResults);
 
             var placementGridsRoot = FindOrCreateRoot("PlacementGrids");
             var placementGrids = BuildPlacementGrids(placementGridsRoot, grid, islandResults);
@@ -321,8 +324,9 @@ namespace Varynth.Tooling.Editor.WorldPrototype
                         if ((flags & SurfaceCellFlags.Water) != 0) continue; // submerged, not emerged land
 
                         var center = grid.CellToWorldCenter(cell);
-                        min = Vector2.Min(min, center);
-                        max = Vector2.Max(max, center);
+                        var centerVec = new Vector2(center.X, center.Z);
+                        min = Vector2.Min(min, centerVec);
+                        max = Vector2.Max(max, centerVec);
                         any = true;
                     }
                 }
@@ -1028,8 +1032,8 @@ namespace Varynth.Tooling.Editor.WorldPrototype
                     }
 
                     var center = grid.CellToWorldCenter(candidate.Cell);
-                    var y = heightSource.TryGetHeight(center.x, center.y, out var height) ? height : 0f;
-                    markerGo.transform.position = new Vector3(center.x, y + ResourceMarkerHeightOffset, center.y);
+                    var y = heightSource.TryGetHeight(center.X, center.Z, out var height) ? height : 0f;
+                    markerGo.transform.position = new Vector3(center.X, y + ResourceMarkerHeightOffset, center.Z);
                     markerGo.transform.localScale = Vector3.one * ResourceMarkerScale;
                     markerGo.SetActive(false); // hidden by default, toggled via F3
 
@@ -1125,6 +1129,34 @@ namespace Varynth.Tooling.Editor.WorldPrototype
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             return controller;
+        }
+
+        // -------------------------------------------------------------- Simulation
+
+        // Phase 2E: the single UnitySimulationDriver/ManagedSimulation owner. Wired
+        // the same SerializedObject field-injection way as every other BuildXxx
+        // method here; PlacementController/RoadPlacementController no longer receive
+        // island surface data directly -- they find this driver themselves in
+        // Start() (same "shared host, found via FindFirstObjectByType" idiom already
+        // used for ConstructionToolCoordinatorHost).
+        private static UnitySimulationDriver BuildSimulationDriver(
+            GameObject root,
+            WorldInteractionController worldInteraction,
+            List<IslandBuildResult> islands)
+        {
+            var go = FindOrCreateChild(root, "SimulationDriver");
+            var driver = go.GetComponent<UnitySimulationDriver>();
+            if (driver == null)
+            {
+                driver = go.AddComponent<UnitySimulationDriver>();
+            }
+
+            var serialized = new SerializedObject(driver);
+            serialized.FindProperty("_worldInteraction").objectReferenceValue = worldInteraction;
+            SetObjectArray(serialized, "_islandSurfaceData", islands.Select(i => (Object)i.RuntimeSurfaceData).ToArray());
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            return driver;
         }
 
         // -------------------------------------------------------------- Placement
@@ -1392,7 +1424,6 @@ namespace Varynth.Tooling.Editor.WorldPrototype
 
             var serialized = new SerializedObject(controller);
             serialized.FindProperty("_worldInteraction").objectReferenceValue = worldInteraction;
-            SetObjectArray(serialized, "_islandSurfaceData", islands.Select(i => (Object)i.RuntimeSurfaceData).ToArray());
             serialized.FindProperty("_ghost").objectReferenceValue = ghost;
             serialized.FindProperty("_dragPreview").objectReferenceValue = dragPreview;
             serialized.FindProperty("_visualCatalog").objectReferenceValue = visualCatalog;
@@ -1544,7 +1575,6 @@ namespace Varynth.Tooling.Editor.WorldPrototype
 
             var serialized = new SerializedObject(controller);
             serialized.FindProperty("_worldInteraction").objectReferenceValue = worldInteraction;
-            SetObjectArray(serialized, "_islandSurfaceData", islands.Select(i => (Object)i.RuntimeSurfaceData).ToArray());
             SetObjectArray(serialized, "_networkDisplays", networkDisplays);
             serialized.FindProperty("_preview").objectReferenceValue = preview;
             serialized.FindProperty("_roadToolButton").objectReferenceValue = roadToolButton;

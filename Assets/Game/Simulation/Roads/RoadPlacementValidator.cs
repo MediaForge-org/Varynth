@@ -96,19 +96,21 @@ namespace Varynth.World.Roads
             var fromCenter = grid.CellToWorldCenter(from);
             var toCenter = grid.CellToWorldCenter(to);
 
-            if (!heights.TryGetHeight(fromCenter.x, fromCenter.y, out var fromHeight)
-                || !heights.TryGetHeight(toCenter.x, toCenter.y, out var toHeight))
+            if (!heights.TryGetHeight(fromCenter.X, fromCenter.Z, out var fromHeight)
+                || !heights.TryGetHeight(toCenter.X, toCenter.Z, out var toHeight))
             {
                 return false;
             }
 
-            var horizontalDistance = UnityEngine.Vector2.Distance(fromCenter, toCenter);
+            var dx = toCenter.X - fromCenter.X;
+            var dz = toCenter.Z - fromCenter.Z;
+            var horizontalDistance = (float)System.Math.Sqrt(dx * dx + dz * dz);
             if (horizontalDistance <= 0f)
             {
                 return false;
             }
 
-            slopeDegrees = UnityEngine.Mathf.Atan(UnityEngine.Mathf.Abs(toHeight - fromHeight) / horizontalDistance) * UnityEngine.Mathf.Rad2Deg;
+            slopeDegrees = (float)System.Math.Atan(System.Math.Abs(toHeight - fromHeight) / horizontalDistance) * (180f / (float)System.Math.PI);
             return true;
         }
     }

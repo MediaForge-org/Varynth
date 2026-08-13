@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using UnityEngine;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions.Buildings;
 using Varynth.Core.Registry;
@@ -12,9 +11,12 @@ using Varynth.World.Terrain;
 namespace Varynth.World.Placement
 {
     /// <summary>
-    /// The World-side "world building state". Built entirely from runtime-safe data
-    /// (IslandSurfaceRuntimeData + Terrain, never any Varynth.Tooling.Editor type),
-    /// so it works identically in the Editor Play session and in a real Player build.
+    /// The authoritative building state (Phase 2E: fully engine-free, lives in
+    /// Varynth.Core.Simulation). Built entirely from plain SimulationIslandData
+    /// (baked once by SimulationWorldBootstrap in Varynth.World from real
+    /// Terrain/IslandSurfaceRuntimeData -- never any Varynth.Tooling.Editor type, and
+    /// never a live UnityEngine.Terrain reference), so it works identically headless
+    /// in a plain EditMode test, in the Editor Play session, and in a real Player build.
     /// Kept command-agnostic: its public API takes plain values (ContentId,
     /// GridCoordinate, BuildingRotation, PlayerId, BuildingInstanceId), never
     /// PlaceBuildingCommand/RemoveBuildingCommand/ISimulationCommand -- so it stays
@@ -34,9 +36,10 @@ namespace Varynth.World.Placement
     {
         private sealed class IslandEntry
         {
+            public IslandId Id;
             public IslandSurfaceMap Surface;
             public IslandOccupancyMap Occupancy;
-            public RectInt CellBounds;
+            public GridBounds CellBounds;
             public IWorldHeightSource Heights;
         }
 
@@ -54,27 +57,30 @@ namespace Varynth.World.Placement
             _config = config ?? new PlacementConfig();
         }
 
+        /// <summary>Read-only, test/digest-support only -- the next id that would be assigned.</summary>
+        public ulong NextInstanceIdRawPreview => _nextInstanceIdRaw;
+
         /// <summary>
-        /// Adds one island's data. Called once per island at bootstrap (Awake), in
-        /// the same order as the parallel Terrain[]/IslandSurfaceRuntimeData[] arrays
-        /// the scene builder wires -- the resulting index is what ghost/grid-visibility
-        /// code refers to as "the hovered island".
+        /// Adds one island's data from plain, engine-free SimulationIslandData (Phase
+        /// 2E -- no UnityEngine.Terrain/ScriptableObject dependency). Called once per
+        /// island at bootstrap, in the same order as SimulationWorldData.Islands -- the
+        /// resulting index is what ghost/grid-visibility code refers to as "the
+        /// hovered island". heights is a DenseGridHeightSource baked by the caller.
         /// </summary>
-        public int AddIsland(IslandSurfaceRuntimeData runtimeData, UnityEngine.Terrain terrain)
+        public int AddIsland(SimulationIslandData islandData, IWorldHeightSource heights)
         {
-            var originCell = new GridCoordinate(runtimeData.OriginCellX, runtimeData.OriginCellZ);
-            var flags = new SurfaceCellFlags[runtimeData.Flags.Length];
+            var originCell = new GridCoordinate(islandData.OriginCellX, islandData.OriginCellZ);
+            var flags = new SurfaceCellFlags[islandData.Flags.Count];
             for (var i = 0; i < flags.Length; i++)
             {
-                flags[i] = (SurfaceCellFlags)runtimeData.Flags[i];
+                flags[i] = islandData.Flags[i];
             }
 
-            var surface = IslandSurfaceMap.FromRawFlags(originCell, runtimeData.Width, runtimeData.Height, flags);
-            var occupancy = new IslandOccupancyMap(originCell, runtimeData.Width, runtimeData.Height);
-            var cellBounds = new RectInt(runtimeData.OriginCellX, runtimeData.OriginCellZ, runtimeData.Width, runtimeData.Height);
-            var heights = new UnityTerrainHeightSource(terrain);
+            var surface = IslandSurfaceMap.FromRawFlags(originCell, islandData.Width, islandData.Height, flags);
+            var occupancy = new IslandOccupancyMap(originCell, islandData.Width, islandData.Height);
+            var cellBounds = new GridBounds(islandData.OriginCellX, islandData.OriginCellZ, islandData.Width, islandData.Height);
 
-            _islands.Add(new IslandEntry { Surface = surface, Occupancy = occupancy, CellBounds = cellBounds, Heights = heights });
+            _islands.Add(new IslandEntry { Id = islandData.Id, Surface = surface, Occupancy = occupancy, CellBounds = cellBounds, Heights = heights });
             return _islands.Count - 1;
         }
 
@@ -86,8 +92,7 @@ namespace Varynth.World.Placement
         {
             for (var i = 0; i < _islands.Count; i++)
             {
-                var bounds = _islands[i].CellBounds;
-                if (cell.X >= bounds.xMin && cell.X < bounds.xMax && cell.Z >= bounds.yMin && cell.Z < bounds.yMax)
+                if (_islands[i].CellBounds.Contains(cell))
                 {
                     islandIndex = i;
                     return true;
@@ -194,6 +199,19 @@ namespace Varynth.World.Placement
 
             instance = null;
             return false;
+        }
+
+        public int IslandCount => _islands.Count;
+
+        public IslandId GetIslandId(int islandIndex) => _islands[islandIndex].Id;
+
+        /// <summary>All current instances with their owning island -- render-snapshot/digest support only.</summary>
+        public IEnumerable<(BuildingInstance Instance, IslandId Island)> EnumerateInstances()
+        {
+            foreach (var entry in _instances.Values)
+            {
+                yield return (entry.Instance, _islands[entry.IslandIndex].Id);
+            }
         }
     }
 }

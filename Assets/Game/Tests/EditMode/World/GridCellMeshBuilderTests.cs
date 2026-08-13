@@ -29,7 +29,7 @@ namespace Varynth.Tests.EditMode.World
         [Test]
         public void BuildCellQuad_VerticesCoverExactCellCorners()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FlatHeightSource(10f);
             var cell = new GridCoordinate(2, 1);
 
@@ -50,7 +50,7 @@ namespace Varynth.Tests.EditMode.World
         [Test]
         public void BuildCellQuad_AppliesHeightOffset()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FlatHeightSource(5f);
             var cell = new GridCoordinate(0, 0);
 
@@ -67,7 +67,7 @@ namespace Varynth.Tests.EditMode.World
         [Test]
         public void BuildCellQuad_NormalPointsUpward()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FlatHeightSource(0f);
             var cell = new GridCoordinate(0, 0);
 
@@ -85,7 +85,7 @@ namespace Varynth.Tests.EditMode.World
         [Test]
         public void BuildCellQuad_FollowsSlopedTerrain_CornersAtDifferentHeights()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new SlopedHeightSource();
             var cell = new GridCoordinate(0, 0);
 

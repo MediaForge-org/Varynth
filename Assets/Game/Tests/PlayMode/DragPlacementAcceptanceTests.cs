@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using Varynth.Presentation;
 using Varynth.Presentation.Interaction;
 using Varynth.Presentation.Placement;
 
@@ -36,9 +37,11 @@ namespace Varynth.Tests.PlayMode
 
             var controller = Object.FindFirstObjectByType<PlacementController>();
             var worldInteraction = Object.FindFirstObjectByType<WorldInteractionController>();
+            var driver = Object.FindFirstObjectByType<UnitySimulationDriver>();
             var camera = Camera.main;
             Assert.IsNotNull(controller);
             Assert.IsNotNull(worldInteraction);
+            Assert.IsNotNull(driver);
 
             // House (bld.prototype.house) is DragRepeat -- centered on TestIsland_Large (world (0,0)).
             yield return HoverWorldPosition(camera, worldInteraction, -20f, 0f);
@@ -63,6 +66,8 @@ namespace Varynth.Tests.PlayMode
 
             Release(_mouse.leftButton);
             yield return null;
+            driver.Simulation.AdvanceTicks(1);
+            yield return null;
             yield return null;
 
             var placedCountAfter = CountPlacedBuildings();
@@ -78,6 +83,8 @@ namespace Varynth.Tests.PlayMode
 
             var beforeSingle = CountPlacedBuildings();
             PressAndRelease(_mouse.leftButton);
+            yield return null;
+            driver.Simulation.AdvanceTicks(1);
             yield return null;
             yield return null;
 

@@ -25,12 +25,12 @@ namespace Varynth.World.Grid
             // Vertical grid lines (constant X), sampled at every row boundary.
             for (var gx = xMin; gx <= xMax; gx++)
             {
-                var worldX = grid.Origin.x + gx * grid.CellSize;
+                var worldX = grid.Origin.X + gx * grid.CellSize;
                 var lineStart = vertices.Count;
 
                 for (var gz = yMin; gz <= yMax; gz++)
                 {
-                    var worldZ = grid.Origin.y + gz * grid.CellSize;
+                    var worldZ = grid.Origin.Z + gz * grid.CellSize;
                     vertices.Add(SamplePoint(heights, worldX, worldZ, heightOffset));
                 }
 
@@ -40,12 +40,12 @@ namespace Varynth.World.Grid
             // Horizontal grid lines (constant Z), sampled at every column boundary.
             for (var gz = yMin; gz <= yMax; gz++)
             {
-                var worldZ = grid.Origin.y + gz * grid.CellSize;
+                var worldZ = grid.Origin.Z + gz * grid.CellSize;
                 var lineStart = vertices.Count;
 
                 for (var gx = xMin; gx <= xMax; gx++)
                 {
-                    var worldX = grid.Origin.x + gx * grid.CellSize;
+                    var worldX = grid.Origin.X + gx * grid.CellSize;
                     vertices.Add(SamplePoint(heights, worldX, worldZ, heightOffset));
                 }
 

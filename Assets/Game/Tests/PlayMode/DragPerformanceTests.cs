@@ -12,6 +12,7 @@ using Varynth.Core.Simulation.Clock;
 using Varynth.Core.Simulation.Common;
 using Varynth.World.Placement;
 using Varynth.World.Surface;
+using Varynth.World.Terrain;
 
 namespace Varynth.Tests.PlayMode
 {
@@ -22,26 +23,17 @@ namespace Varynth.Tests.PlayMode
         [UnityTest]
         public IEnumerator DragBatch_150To200Origins_PlacesQuicklyViaOneCommand()
         {
-            var terrainData = new TerrainData { heightmapResolution = 33, size = new Vector3(800f, 40f, 800f) };
-            var heights = new float[33, 33];
-            for (var y = 0; y < 33; y++)
-            for (var x = 0; x < 33; x++)
-                heights[y, x] = 0.5f;
-            terrainData.SetHeights(0, 0, heights);
+            // Phase 2E: ArchipelagoPlacementState is fully engine-free -- no
+            // Terrain/GameObject/ScriptableObject needed for this headless stress test.
+            var flags = new SurfaceCellFlags[200 * 200];
+            for (var i = 0; i < flags.Length; i++) flags[i] = SurfaceCellFlags.Land | SurfaceCellFlags.Buildable;
+            var cellHeights = new float[200 * 200];
 
-            var terrainGo = new GameObject("SyntheticDragStressTestTerrain");
-            var terrain = terrainGo.AddComponent<Terrain>();
-            terrain.terrainData = terrainData;
-            terrainGo.transform.position = new Vector3(0f, -15f, 0f);
-
-            var runtimeData = ScriptableObject.CreateInstance<IslandSurfaceRuntimeData>();
-            var flags = new byte[200 * 200];
-            for (var i = 0; i < flags.Length; i++) flags[i] = (byte)(SurfaceCellFlags.Land | SurfaceCellFlags.Buildable);
-            runtimeData.SetData(0, 0, 200, 200, flags);
-
-            var grid = new Varynth.World.Grid.WorldGrid(4f, Vector2.zero);
+            var grid = new Varynth.World.Grid.WorldGrid(4f, (0f, 0f));
             var state = new ArchipelagoPlacementState(grid);
-            state.AddIsland(runtimeData, terrain);
+            var islandData = new SimulationIslandData(IslandId.FromName("SyntheticDragStressTestIsland"), "SyntheticDragStressTestIsland", 0, 0, 200, 200, flags, cellHeights);
+            var heightsSource = new DenseGridHeightSource(grid, 0, 0, 200, 200, cellHeights);
+            state.AddIsland(islandData, heightsSource);
 
             var registry = new ContentRegistry<BuildingDefinition>();
             registry.Register(new BuildingDefinition(
@@ -63,7 +55,6 @@ namespace Varynth.Tests.PlayMode
             Assert.AreEqual(origins.Count, placed.Count, $"Fully-buildable synthetic map should place every planned origin. Rejected: {rejected.Count}");
             Assert.Less(stopwatch.ElapsedMilliseconds, 2000, "A 100+ origin batch should complete in well under a couple of seconds.");
 
-            Object.Destroy(terrainGo);
             yield return null;
         }
     }

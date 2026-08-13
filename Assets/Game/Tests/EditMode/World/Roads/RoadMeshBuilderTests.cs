@@ -37,7 +37,7 @@ namespace Varynth.Tests.EditMode.World.Roads
             public bool TryGetHeight(float worldX, float worldZ, out float height) { height = Height(worldX, worldZ); return true; }
         }
 
-        private static WorldGrid Grid() => new WorldGrid(4f, Vector2.zero);
+        private static WorldGrid Grid() => new WorldGrid(4f, (0f, 0f));
         private static RoadDefinition Road() =>
             new RoadDefinition(ContentId.Parse("road.prototype.basic"), LocalizationKey.Parse("road.name"), "road", 1, true, false);
 
@@ -191,8 +191,10 @@ namespace Varynth.Tests.EditMode.World.Roads
 
             foreach (var segment in graph.Segments)
             {
-                var fromCenter = grid.CellToWorldCenter(segment.From);
-                var toCenter = grid.CellToWorldCenter(segment.To);
+                var fromCenterTuple = grid.CellToWorldCenter(segment.From);
+                var toCenterTuple = grid.CellToWorldCenter(segment.To);
+                var fromCenter = new Vector2(fromCenterTuple.X, fromCenterTuple.Z);
+                var toCenter = new Vector2(toCenterTuple.X, toCenterTuple.Z);
                 var direction2D = (toCenter - fromCenter).normalized;
                 var perpendicular = new Vector2(-direction2D.y, direction2D.x) * halfWidth;
 
@@ -219,8 +221,10 @@ namespace Varynth.Tests.EditMode.World.Roads
 
             foreach (var segment in graph.Segments)
             {
-                var fromCenter = grid.CellToWorldCenter(segment.From);
-                var toCenter = grid.CellToWorldCenter(segment.To);
+                var fromCenterTuple = grid.CellToWorldCenter(segment.From);
+                var toCenterTuple = grid.CellToWorldCenter(segment.To);
+                var fromCenter = new Vector2(fromCenterTuple.X, fromCenterTuple.Z);
+                var toCenter = new Vector2(toCenterTuple.X, toCenterTuple.Z);
                 var direction2D = (toCenter - fromCenter).normalized;
                 var perpendicular = new Vector2(-direction2D.y, direction2D.x) * halfWidth;
 

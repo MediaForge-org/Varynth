@@ -1,5 +1,4 @@
 using NUnit.Framework;
-using UnityEngine;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions;
 using Varynth.Core.Definitions.Buildings;
@@ -10,16 +9,16 @@ using Varynth.Core.Simulation.Common;
 using Varynth.World.Grid;
 using Varynth.World.Placement;
 using Varynth.World.Surface;
+using Varynth.World.Terrain;
 
 namespace Varynth.Tests.EditMode.World.Placement
 {
     // Adjustment 6 regression guard: BuildingPlacementCommandHandler is the ONLY type
     // exercised here with command types. ArchipelagoPlacementStateTests (separate
     // fixture) proves the state itself works with zero ISimulationCommand usage.
+    // Phase 2E: fully headless -- no Terrain/GameObject/ScriptableObject needed.
     public class BuildingPlacementCommandHandlerTests
     {
-        private GameObject _islandGo;
-        private UnityEngine.Terrain _island;
         private ContentRegistry<BuildingDefinition> _registry;
         private ArchipelagoPlacementState _state;
         private BuildingPlacementCommandHandler _handler;
@@ -27,38 +26,20 @@ namespace Varynth.Tests.EditMode.World.Placement
         [SetUp]
         public void SetUp()
         {
-            var data = new TerrainData { heightmapResolution = 33, size = new Vector3(40f, 40f, 40f) };
-            var heights = new float[33, 33];
-            for (var y = 0; y < 33; y++)
-            for (var x = 0; x < 33; x++)
-                heights[y, x] = 0.5f;
-            data.SetHeights(0, 0, heights);
-
-            _islandGo = new GameObject("Island");
-            _island = _islandGo.AddComponent<UnityEngine.Terrain>();
-            _island.terrainData = data;
-            _islandGo.transform.position = new Vector3(0f, -15f, 0f);
-
-            var grid = new WorldGrid(4f, Vector2.zero);
-            var surfaceData = ScriptableObject.CreateInstance<IslandSurfaceRuntimeData>();
-            var flags = new byte[100];
-            for (var i = 0; i < flags.Length; i++) flags[i] = (byte)(SurfaceCellFlags.Land | SurfaceCellFlags.Buildable);
-            surfaceData.SetData(0, 0, 10, 10, flags);
+            var grid = new WorldGrid(4f, (0f, 0f));
+            var flags = new SurfaceCellFlags[100];
+            for (var i = 0; i < flags.Length; i++) flags[i] = SurfaceCellFlags.Land | SurfaceCellFlags.Buildable;
+            var cellHeights = new float[100];
 
             _state = new ArchipelagoPlacementState(grid);
-            _state.AddIsland(surfaceData, _island);
+            var islandData = new SimulationIslandData(IslandId.FromName("Island"), "Island", 0, 0, 10, 10, flags, cellHeights);
+            _state.AddIsland(islandData, new DenseGridHeightSource(grid, 0, 0, 10, 10, cellHeights));
 
             var definition = new BuildingDefinition(ContentId.Parse("bld.prototype.house"), LocalizationKey.Parse("bld.house.name"), 2, 2, "house");
             _registry = new ContentRegistry<BuildingDefinition>();
             _registry.Register(definition);
 
             _handler = new BuildingPlacementCommandHandler(_state, _registry);
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            Object.DestroyImmediate(_islandGo);
         }
 
         [Test]

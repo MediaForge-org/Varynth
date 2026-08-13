@@ -26,7 +26,7 @@ namespace Varynth.Tests.EditMode.World.Roads
             public bool TryGetHeight(float worldX, float worldZ, out float height) { height = _fn(worldX, worldZ); return true; }
         }
 
-        private static WorldGrid Grid() => new WorldGrid(4f, Vector2.zero);
+        private static WorldGrid Grid() => new WorldGrid(4f, (0f, 0f));
 
         private static RoadDefinition Road(bool allowsCoast = false) =>
             new RoadDefinition(ContentId.Parse("road.prototype.basic"), LocalizationKey.Parse("road.name"), "road", 1, true, allowsCoast);

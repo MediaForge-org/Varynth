@@ -26,8 +26,8 @@ namespace Varynth.Presentation.Placement
         {
             var worldWidth = effectiveWidthCells * grid.CellSize;
             var worldLength = effectiveLengthCells * grid.CellSize;
-            var centerX = grid.Origin.x + (origin.X + effectiveWidthCells * 0.5f) * grid.CellSize;
-            var centerZ = grid.Origin.y + (origin.Z + effectiveLengthCells * 0.5f) * grid.CellSize;
+            var centerX = grid.Origin.X + (origin.X + effectiveWidthCells * 0.5f) * grid.CellSize;
+            var centerZ = grid.Origin.Z + (origin.Z + effectiveLengthCells * 0.5f) * grid.CellSize;
             var centerY = heights.TryGetHeight(centerX, centerZ, out var height) ? height : 0f;
 
             var position = new Vector3(centerX, centerY, centerZ);

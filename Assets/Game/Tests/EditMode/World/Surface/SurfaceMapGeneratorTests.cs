@@ -41,7 +41,7 @@ namespace Varynth.Tests.EditMode.World.Surface
         [Test]
         public void UnderwaterCell_ClassifiedAsWater_NotBuildable()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FuncHeightSource((x, z) => -5f);
             var bounds = new RectInt(0, 0, 1, 1);
 
@@ -55,7 +55,7 @@ namespace Varynth.Tests.EditMode.World.Surface
         [Test]
         public void NearSeaLevelCell_ClassifiedAsCoast_NotBuildable()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FuncHeightSource((x, z) => 1f); // within 0..CoastBandHeight(3)
             var bounds = new RectInt(0, 0, 1, 1);
 
@@ -70,7 +70,7 @@ namespace Varynth.Tests.EditMode.World.Surface
         public void HighButFlatCell_IsBuildable()
         {
             // Proves height alone does not gate Buildable/RockOrSteep -- only slope does.
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FuncHeightSource((x, z) => 200f);
             var bounds = new RectInt(0, 0, 1, 1);
 
@@ -85,7 +85,7 @@ namespace Varynth.Tests.EditMode.World.Surface
         [Test]
         public void SteepCell_ClassifiedAsRockOrSteep_NotBuildable()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FuncHeightSource((x, z) => x * 10f); // steep along X
             var bounds = new RectInt(0, 0, 1, 1);
 
@@ -100,7 +100,7 @@ namespace Varynth.Tests.EditMode.World.Surface
         [Test]
         public void CellWithNoHeightData_ClassifiedAsWater()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FuncHeightSource((x, z) => null);
             var bounds = new RectInt(0, 0, 1, 1);
 

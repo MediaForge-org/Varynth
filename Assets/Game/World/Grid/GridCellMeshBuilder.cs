@@ -16,9 +16,9 @@ namespace Varynth.World.Grid
     {
         public static Mesh BuildCellQuad(WorldGrid grid, IWorldHeightSource heights, GridCoordinate cell, float heightOffset)
         {
-            var x0 = grid.Origin.x + cell.X * grid.CellSize;
+            var x0 = grid.Origin.X + cell.X * grid.CellSize;
             var x1 = x0 + grid.CellSize;
-            var z0 = grid.Origin.y + cell.Z * grid.CellSize;
+            var z0 = grid.Origin.Z + cell.Z * grid.CellSize;
             var z1 = z0 + grid.CellSize;
 
             var p00 = SamplePoint(heights, x0, z0, heightOffset);

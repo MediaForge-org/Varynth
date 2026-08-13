@@ -1,4 +1,4 @@
-using UnityEngine;
+using System;
 using Varynth.Core.Common;
 using Varynth.World.Grid;
 using Varynth.World.Terrain;
@@ -24,7 +24,7 @@ namespace Varynth.World.Surface
         {
             var center = grid.CellToWorldCenter(cell);
 
-            if (!heights.TryGetHeight(center.x, center.y, out var centerHeight))
+            if (!heights.TryGetHeight(center.X, center.Z, out var centerHeight))
             {
                 return 0f;
             }
@@ -33,27 +33,27 @@ namespace Varynth.World.Surface
             var maxDelta = 0f;
             var validSamples = 0;
 
-            if (heights.TryGetHeight(center.x + cellSize, center.y, out var eastHeight))
+            if (heights.TryGetHeight(center.X + cellSize, center.Z, out var eastHeight))
             {
-                maxDelta = Mathf.Max(maxDelta, Mathf.Abs(eastHeight - centerHeight));
+                maxDelta = Math.Max(maxDelta, Math.Abs(eastHeight - centerHeight));
                 validSamples++;
             }
 
-            if (heights.TryGetHeight(center.x - cellSize, center.y, out var westHeight))
+            if (heights.TryGetHeight(center.X - cellSize, center.Z, out var westHeight))
             {
-                maxDelta = Mathf.Max(maxDelta, Mathf.Abs(westHeight - centerHeight));
+                maxDelta = Math.Max(maxDelta, Math.Abs(westHeight - centerHeight));
                 validSamples++;
             }
 
-            if (heights.TryGetHeight(center.x, center.y + cellSize, out var northHeight))
+            if (heights.TryGetHeight(center.X, center.Z + cellSize, out var northHeight))
             {
-                maxDelta = Mathf.Max(maxDelta, Mathf.Abs(northHeight - centerHeight));
+                maxDelta = Math.Max(maxDelta, Math.Abs(northHeight - centerHeight));
                 validSamples++;
             }
 
-            if (heights.TryGetHeight(center.x, center.y - cellSize, out var southHeight))
+            if (heights.TryGetHeight(center.X, center.Z - cellSize, out var southHeight))
             {
-                maxDelta = Mathf.Max(maxDelta, Mathf.Abs(southHeight - centerHeight));
+                maxDelta = Math.Max(maxDelta, Math.Abs(southHeight - centerHeight));
                 validSamples++;
             }
 
@@ -62,7 +62,7 @@ namespace Varynth.World.Surface
                 return 0f;
             }
 
-            return Mathf.Atan(maxDelta / cellSize) * Mathf.Rad2Deg;
+            return (float)Math.Atan(maxDelta / cellSize) * (180f / (float)Math.PI);
         }
     }
 }

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using UnityEngine;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions.Roads;
 using Varynth.World.Grid;
@@ -52,7 +51,7 @@ namespace Varynth.World.Roads
         public static bool TryFindRoute(
             GridCoordinate start,
             GridCoordinate end,
-            RectInt cellBounds,
+            GridBounds cellBounds,
             IslandSurfaceMap surface,
             RoadGraph graph,
             WorldGrid grid,
@@ -98,7 +97,7 @@ namespace Varynth.World.Roads
                     var (dx, dz) = direction.ToDelta();
                     var neighbor = new GridCoordinate(current.Cell.X + dx, current.Cell.Z + dz);
 
-                    if (!cellBounds.Contains(new Vector2Int(neighbor.X, neighbor.Z)) || closed.Contains(neighbor))
+                    if (!cellBounds.Contains(neighbor) || closed.Contains(neighbor))
                     {
                         continue;
                     }

@@ -53,7 +53,7 @@ namespace Varynth.Tests.EditMode.World.Surface
         [Test]
         public void FlatTerrain_ReturnsNearZeroSlope()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new FlatHeightSource(10f);
 
             var slope = SlopeEstimator.EstimateSlopeDegrees(heights, grid, new GridCoordinate(0, 0));
@@ -64,7 +64,7 @@ namespace Varynth.Tests.EditMode.World.Surface
         [Test]
         public void SlopedTerrain_ReturnsExpectedAngle()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new SlopedAlongXHeightSource();
 
             // Center (2,2): height 2. East (6,2): height 6, delta 4. CellSize 4 -> atan(4/4) = 45deg.
@@ -76,7 +76,7 @@ namespace Varynth.Tests.EditMode.World.Surface
         [Test]
         public void MissingCenterSample_ReturnsNeutralZero()
         {
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new NoDataHeightSource();
 
             var slope = SlopeEstimator.EstimateSlopeDegrees(heights, grid, new GridCoordinate(0, 0));
@@ -93,7 +93,7 @@ namespace Varynth.Tests.EditMode.World.Surface
             // south/east/west are missing. If they were wrongly fabricated as height 0, the
             // computed slope would spike towards ~90 degrees. Correctly excluding them, the
             // only valid comparison (north) is flat, so the result must stay ~0.
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
             var heights = new EdgePlateauHeightSource();
 
             var slope = SlopeEstimator.EstimateSlopeDegrees(heights, grid, new GridCoordinate(0, 0));

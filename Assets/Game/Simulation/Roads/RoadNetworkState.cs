@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using UnityEngine;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions.Roads;
 using Varynth.Core.Registry;
@@ -25,10 +24,12 @@ namespace Varynth.World.Roads
     {
         private sealed class IslandEntry
         {
+            public IslandId Id;
             public IslandSurfaceMap Surface;
             public RoadGraph Graph;
-            public RectInt CellBounds;
+            public GridBounds CellBounds;
             public IWorldHeightSource Heights;
+            public int StateVersion;
         }
 
         private readonly WorldGrid _grid;
@@ -44,20 +45,27 @@ namespace Varynth.World.Roads
             _config = config ?? new RoadPlacementConfig();
         }
 
-        public int AddIsland(IslandSurfaceRuntimeData runtimeData, UnityEngine.Terrain terrain)
+        /// <summary>Read-only, test/digest-support only -- the next id that would be assigned.</summary>
+        public ulong NextSegmentIdRawPreview => _nextSegmentIdRaw;
+
+        /// <summary>
+        /// Adds one island's data from plain, engine-free SimulationIslandData (Phase
+        /// 2E -- no UnityEngine.Terrain/ScriptableObject dependency). heights is a
+        /// DenseGridHeightSource baked by the caller.
+        /// </summary>
+        public int AddIsland(SimulationIslandData islandData, IWorldHeightSource heights)
         {
-            var originCell = new GridCoordinate(runtimeData.OriginCellX, runtimeData.OriginCellZ);
-            var flags = new SurfaceCellFlags[runtimeData.Flags.Length];
+            var originCell = new GridCoordinate(islandData.OriginCellX, islandData.OriginCellZ);
+            var flags = new SurfaceCellFlags[islandData.Flags.Count];
             for (var i = 0; i < flags.Length; i++)
             {
-                flags[i] = (SurfaceCellFlags)runtimeData.Flags[i];
+                flags[i] = islandData.Flags[i];
             }
 
-            var surface = IslandSurfaceMap.FromRawFlags(originCell, runtimeData.Width, runtimeData.Height, flags);
-            var cellBounds = new RectInt(runtimeData.OriginCellX, runtimeData.OriginCellZ, runtimeData.Width, runtimeData.Height);
-            var heights = new UnityTerrainHeightSource(terrain);
+            var surface = IslandSurfaceMap.FromRawFlags(originCell, islandData.Width, islandData.Height, flags);
+            var cellBounds = new GridBounds(islandData.OriginCellX, islandData.OriginCellZ, islandData.Width, islandData.Height);
 
-            _islands.Add(new IslandEntry { Surface = surface, Graph = new RoadGraph(), CellBounds = cellBounds, Heights = heights });
+            _islands.Add(new IslandEntry { Id = islandData.Id, Surface = surface, Graph = new RoadGraph(), CellBounds = cellBounds, Heights = heights, StateVersion = 0 });
             return _islands.Count - 1;
         }
 
@@ -65,8 +73,7 @@ namespace Varynth.World.Roads
         {
             for (var i = 0; i < _islands.Count; i++)
             {
-                var bounds = _islands[i].CellBounds;
-                if (cell.X >= bounds.xMin && cell.X < bounds.xMax && cell.Z >= bounds.yMin && cell.Z < bounds.yMax)
+                if (_islands[i].CellBounds.Contains(cell))
                 {
                     islandIndex = i;
                     return true;
@@ -76,6 +83,14 @@ namespace Varynth.World.Roads
             islandIndex = -1;
             return false;
         }
+
+        public IslandId GetIslandId(int islandIndex) => _islands[islandIndex].Id;
+
+        /// <summary>Bumped on every successful segment add/remove for that island -- render-sync gate (Phase 2E point 5), independent of GameTick.</summary>
+        public int GetStateVersion(int islandIndex) => _islands[islandIndex].StateVersion;
+
+        /// <summary>All current segments for one island -- render-snapshot/digest support only.</summary>
+        public IEnumerable<RoadSegment> EnumerateSegments(int islandIndex) => _islands[islandIndex].Graph.Segments;
 
         public bool IsCellRoadOccupied(GridCoordinate cell)
         {
@@ -222,6 +237,11 @@ namespace Varynth.World.Roads
                 createdList.Add(segment);
             }
 
+            if (createdList.Count > 0)
+            {
+                island.StateVersion++;
+            }
+
             created = createdList;
             return true;
         }
@@ -238,6 +258,7 @@ namespace Varynth.World.Roads
             if (result)
             {
                 _segmentIslandIndex.Remove(id);
+                _islands[islandIndex].StateVersion++;
             }
 
             return result;

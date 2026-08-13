@@ -46,7 +46,7 @@ namespace Varynth.Tests.PlayMode
             Assert.IsFalse(meshRenderer.enabled);
 
             var heightSource = BuildCompositeHeightSource();
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
 
             // Cell (3,3) -> world (14,14), inside TestIsland_Large's footprint.
             highlight.SetCell(new GridCoordinate(3, 3), grid, heightSource);
@@ -69,7 +69,7 @@ namespace Varynth.Tests.PlayMode
             var highlight = Object.FindFirstObjectByType<GridCellHighlight>();
             var meshFilter = highlight.GetComponent<MeshFilter>();
             var heightSource = BuildCompositeHeightSource();
-            var grid = new WorldGrid(4f, Vector2.zero);
+            var grid = new WorldGrid(4f, (0f, 0f));
 
             // Cell inside TestIsland_Large (center world (0,0)).
             highlight.SetCell(new GridCoordinate(3, 3), grid, heightSource);

@@ -54,7 +54,7 @@ namespace Varynth.World.Interaction
 
         public GridCoordinate ToCell(Vector3 worldPosition)
         {
-            return _grid.WorldToCell(worldPosition);
+            return _grid.WorldToCell(worldPosition.x, worldPosition.z);
         }
     }
 }

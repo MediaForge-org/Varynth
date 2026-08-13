@@ -192,3 +192,40 @@ keine erfundene Spezifikation.
   die beide Systeme ohnehin kennt.
 
 Details siehe `Docs/04_IMPLEMENTATION/PHASE_2D_ROAD_NETWORK_FOUNDATION.md`.
+
+## Phase 2E Prototypwerte / Hybrid-Simulation-Boundary-Entscheidung
+
+- **Zentrale Architekturentscheidung**: der autoritative Gameplay-State (aktuell
+  Gebäude-Placement + Straßennetz) sitzt hinter einer echten, engine-freien
+  `ISimulation`-Schnittstelle (`Varynth.Core.Simulation`, `noEngineReferences: true`).
+  Unity/Presentation mutiert diesen State nie direkt — jede bestätigte Platzierung/
+  Entfernung geht über `ISimulation.Submit(...)`, wird auf dem nächsten Tick verarbeitet,
+  und Presentation liest das Ergebnis ausschließlich über `GetSnapshot()`/die schmalen
+  `ISimulationPlacementQueries`/`ISimulationRoadQueries`-Interfaces zurück.
+- Konkrete `ManagedSimulation`-Implementierung koordiniert die inhaltlich unveränderten
+  `ArchipelagoPlacementState`/`RoadNetworkState`/`BuildingPlacementCommandHandler`/
+  `RoadCommandHandler` — keine Logik dupliziert, nur eine Datei-Verschiebung nach
+  `Varynth.Core.Simulation` (bereits von `Varynth.World` referenziert, keine neue
+  Assembly-Kante). Ein per-Datei-Audit ergab: von ~30 betroffenen Dateien nutzten nur 6
+  tatsächlich `UnityEngine`-Typen, alle mechanisch ersetzbar (`Terrain`-Parameter →
+  `IWorldHeightSource`, `RectInt` → `GridBounds`, `Mathf`/`Vector2` → `System.Math`).
+- `SimulationTickConfig.TicksPerSecond = 20.0`, `MaxCatchUpTicksPerFrame = 10` —
+  Prototypwert, zentral konfigurierbar, ausdrücklich nicht final (Brief nennt "10-20 Hz"
+  als Beispielbereich).
+- **Road-Mesh-Rebuild bleibt bewusst am live erzeugten `RoadGraph` orientiert**, aber
+  nie an der autoritativen Instanz: Presentation rekonstruiert bei geänderter
+  `RoadStateVersion` eine Wegwerf-Replika aus `GetSnapshot().Roads` über die bestehende
+  `RoadGraph.AddSegment`-API — kein separater Node-/Topologie-Snapshot-Typ nötig, da
+  `AddSegment` Knoten-Konnektivitätsmasken selbst herleitet.
+- **`ManagedSimulation`-spezifische Zusatz-API** (`GetRoadStateVersion`,
+  `IsBuildingConnectedToRoad`, typisierte `ConsumeBuildingResults`/`ConsumeRoadResults`)
+  geht bewusst über die reine `ISimulation`-Kernschnittstelle hinaus — dokumentierter,
+  akzeptierter Kompromiss für 0.2.3: der Kern-Mutations-/Tick-/Snapshot-Pfad bleibt
+  Implementierungs-agnostisch, diese Zusatzmethoden müsste ein zukünftiger
+  `NativeSimulationBridge` separat nachbilden.
+- **Ein-Tick-Latenz beim Platzieren** (bestätigte Platzierung erscheint erst, sobald der
+  nächste Tick gelaufen ist, nicht mehr synchron im selben Frame) ist eine bewusste,
+  direkte Konsequenz der Architekturentscheidung, keine Regression — bei 20 Hz praktisch
+  nicht wahrnehmbar (≤50 ms).
+
+Details siehe `Docs/04_IMPLEMENTATION/PHASE_2E_SIMULATION_BOUNDARY_FOUNDATION.md`.

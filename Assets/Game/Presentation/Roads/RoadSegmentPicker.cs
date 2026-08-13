@@ -24,7 +24,8 @@ namespace Varynth.Presentation.Roads
             }
 
             var hit2D = new Vector2(worldHitPosition.x, worldHitPosition.z);
-            var nodeCenter = grid.CellToWorldCenter(hoveredCell);
+            var nodeCenterTuple = grid.CellToWorldCenter(hoveredCell);
+            var nodeCenter = new Vector2(nodeCenterTuple.X, nodeCenterTuple.Z);
 
             var found = false;
             var bestDistance = float.MaxValue;
@@ -45,7 +46,8 @@ namespace Varynth.Presentation.Roads
                     continue;
                 }
 
-                var neighborCenter = grid.CellToWorldCenter(neighbor);
+                var neighborCenterTuple = grid.CellToWorldCenter(neighbor);
+                var neighborCenter = new Vector2(neighborCenterTuple.X, neighborCenterTuple.Z);
                 var midpoint = Vector2.Lerp(nodeCenter, neighborCenter, 0.5f);
                 var distance = Vector2.Distance(hit2D, midpoint);
 

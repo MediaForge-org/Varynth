@@ -70,8 +70,10 @@ namespace Varynth.World.Roads
             WorldGrid grid, IWorldHeightSource heights, GridCoordinate from, GridCoordinate to, float halfWidth, float heightOffset,
             List<Vector3> vertices, List<int> triangles)
         {
-            var fromCenter = grid.CellToWorldCenter(from);
-            var toCenter = grid.CellToWorldCenter(to);
+            var fromCenterTuple = grid.CellToWorldCenter(from);
+            var toCenterTuple = grid.CellToWorldCenter(to);
+            var fromCenter = new Vector2(fromCenterTuple.X, fromCenterTuple.Z);
+            var toCenter = new Vector2(toCenterTuple.X, toCenterTuple.Z);
             var length = Vector2.Distance(fromCenter, toCenter);
             var direction2D = (toCenter - fromCenter).normalized;
             var perpendicularUnit = new Vector2(-direction2D.y, direction2D.x);
@@ -118,7 +120,8 @@ namespace Varynth.World.Roads
             WorldGrid grid, IWorldHeightSource heights, RoadNode node, float halfWidth, float heightOffset,
             List<Vector3> vertices, List<int> triangles)
         {
-            var center2D = grid.CellToWorldCenter(node.Cell);
+            var center2DTuple = grid.CellToWorldCenter(node.Cell);
+            var center2D = new Vector2(center2DTuple.X, center2DTuple.Z);
 
             var centerIndex = vertices.Count;
             vertices.Add(SamplePoint(heights, center2D, heightOffset));

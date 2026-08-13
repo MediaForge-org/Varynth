@@ -15,7 +15,7 @@ namespace Varynth.Tests.EditMode.World.Surface
             public bool TryGetHeight(float worldX, float worldZ, out float height) { height = 0f; return true; }
         }
 
-        private static WorldGrid Grid() => new WorldGrid(4f, Vector2.zero);
+        private static WorldGrid Grid() => new WorldGrid(4f, (0f, 0f));
 
         [Test]
         public void BuildCategoryLineMesh_UsesLineTopology_NotFilledTriangles()

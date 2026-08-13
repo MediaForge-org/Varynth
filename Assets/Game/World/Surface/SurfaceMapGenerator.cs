@@ -42,7 +42,7 @@ namespace Varynth.World.Surface
         {
             var center = grid.CellToWorldCenter(cell);
 
-            if (!heights.TryGetHeight(center.x, center.y, out var height) || height <= config.SeaLevelWorldY)
+            if (!heights.TryGetHeight(center.X, center.Z, out var height) || height <= config.SeaLevelWorldY)
             {
                 return SurfaceCellFlags.Water;
             }

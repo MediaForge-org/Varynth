@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -7,12 +6,10 @@ using UnityEngine.UI;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions.Roads;
 using Varynth.Core.Registry;
-using Varynth.Core.Simulation.Clock;
-using Varynth.Core.Simulation.Common;
+using Varynth.Core.Simulation.Boundary;
 using Varynth.Core.Simulation.Road;
 using Varynth.Data.Loading;
 using Varynth.Presentation.Interaction;
-using Varynth.World.Placement;
 using Varynth.World.Roads;
 
 namespace Varynth.Presentation.Roads
@@ -24,11 +21,19 @@ namespace Varynth.Presentation.Roads
     /// PlacementController. Tool activation/cancellation and Player Placement Grid
     /// visibility are arbitrated centrally through ConstructionToolCoordinator, never
     /// by reaching into PlacementController directly.
+    ///
+    /// Phase 2E: no longer owns/constructs RoadNetworkState -- the single
+    /// authoritative instance lives inside ManagedSimulation, owned by
+    /// UnitySimulationDriver (found here in Start(), same idiom as
+    /// ConstructionToolCoordinatorHost). Route preview reads through
+    /// ISimulationRoadQueries (read-only). Confirmed build/remove goes through
+    /// ISimulation.Submit(...) -- the mesh only updates once the command actually
+    /// lands and RoadRuntimeMeshRefresh notices GetRoadStateVersion changed (never a
+    /// live RoadGraph read -- see RoadRuntimeMeshRefresh).
     /// </summary>
     public sealed class RoadPlacementController : MonoBehaviour, ConstructionToolCoordinator.IConstructionTool
     {
         [SerializeField] private WorldInteractionController _worldInteraction;
-        [SerializeField] private Varynth.World.Placement.IslandSurfaceRuntimeData[] _islandSurfaceData;
         [SerializeField] private RoadNetworkDisplay[] _networkDisplays;
         [SerializeField] private RoadPreviewDisplay _preview;
         [SerializeField] private Button _roadToolButton;
@@ -36,19 +41,17 @@ namespace Varynth.Presentation.Roads
         [SerializeField] private Key _selectToolKey = Key.Digit4;
 
         private ConstructionToolCoordinator _coordinator;
-        private RoadNetworkState _state;
         private ContentRegistry<RoadDefinition> _registry;
-        private RoadCommandHandler _commandHandler;
-        private PlayerId _localPlayerId;
+        private ISimulation _simulation;
+        private ISimulationRoadQueries _roadQueries;
         private ContentId _selectedRoadId;
         private GridCoordinate? _startCell;
         private IReadOnlyList<GridCoordinate> _currentPath;
         private bool _currentPathValid;
         private GridCoordinate? _lastPreviewedEnd;
         private int _hoveredIslandIndex = -1;
-        private IBuildingOccupancyQuery _buildingOccupancy;
+        private int[] _lastAppliedMeshStateVersions = System.Array.Empty<int>();
 
-        public RoadNetworkState State => _state;
         public ContentRegistry<RoadDefinition> Registry => _registry;
         public bool IsActive => _coordinator != null && _coordinator.ActiveMode == ConstructionToolCoordinator.ConstructionToolMode.Road;
         public IReadOnlyList<GridCoordinate> PreviewedPath => _currentPath;
@@ -61,22 +64,8 @@ namespace Varynth.Presentation.Roads
 
         private void Awake()
         {
-            _state = new RoadNetworkState(_worldInteraction.Grid);
-
-            var terrains = _worldInteraction.Terrains ?? Array.Empty<UnityEngine.Terrain>();
-            var surfaceData = _islandSurfaceData ?? Array.Empty<Varynth.World.Placement.IslandSurfaceRuntimeData>();
-            var islandCount = Mathf.Min(terrains.Length, surfaceData.Length);
-            for (var i = 0; i < islandCount; i++)
-            {
-                if (terrains[i] != null && surfaceData[i] != null)
-                {
-                    _state.AddIsland(surfaceData[i], terrains[i]);
-                }
-            }
-
             var contentRoot = Path.Combine(Application.streamingAssetsPath, "Content", "Roads");
             _registry = RoadContentBootstrap.LoadRegistry(contentRoot);
-            _localPlayerId = PlayerId.NewId();
 
             if (_registry.TryGet(ContentId.Parse("road.prototype.basic"), out _))
             {
@@ -86,6 +75,12 @@ namespace Varynth.Presentation.Roads
             if (_roadToolButton != null) _roadToolButton.onClick.AddListener(SelectRoadTool);
 
             if (_preview != null) _preview.Hide();
+
+            _lastAppliedMeshStateVersions = new int[_networkDisplays?.Length ?? 0];
+            for (var i = 0; i < _lastAppliedMeshStateVersions.Length; i++)
+            {
+                _lastAppliedMeshStateVersions[i] = int.MinValue;
+            }
         }
 
         private void Start()
@@ -99,17 +94,18 @@ namespace Varynth.Presentation.Roads
                 }
             }
 
-            // Cross-wiring happens in Start (after every Awake ran) -- the two
-            // world-state systems never reference each other directly; only the
-            // small read-only query interface is composed here, by the one place
-            // that legitimately knows about both.
-            var buildingController = FindFirstObjectByType<Varynth.Presentation.Placement.PlacementController>();
-            _buildingOccupancy = buildingController != null ? buildingController.State : null;
-            _commandHandler = new RoadCommandHandler(_state, _registry, _buildingOccupancy);
+            var driver = FindFirstObjectByType<UnitySimulationDriver>();
+            if (driver != null)
+            {
+                _simulation = driver.Simulation;
+                _roadQueries = driver.Simulation;
+            }
         }
 
         private void Update()
         {
+            SyncMeshFromSnapshot();
+
             var keyboard = Keyboard.current;
             if (keyboard != null && keyboard[_selectToolKey].wasPressedThisFrame)
             {
@@ -129,6 +125,19 @@ namespace Varynth.Presentation.Roads
             UpdateHoveredIslandAndGrid();
             UpdatePreview();
             UpdateConfirmOrCancel();
+        }
+
+        /// <summary>See RoadRuntimeMeshRefresh -- reconstructs a disposable RoadGraph replica from the snapshot per changed island, never reads a live authoritative graph.</summary>
+        private void SyncMeshFromSnapshot()
+        {
+            if (_simulation == null || _roadQueries == null)
+            {
+                return;
+            }
+
+            var snapshot = _simulation.GetSnapshot();
+            RoadRuntimeMeshRefresh.RefreshFromSnapshot(
+                snapshot, _roadQueries, _lastAppliedMeshStateVersions, _networkDisplays, _registry, _selectedRoadId, _worldInteraction.Grid, _worldInteraction.HeightSource);
         }
 
         public void SelectRoadTool()
@@ -155,7 +164,7 @@ namespace Varynth.Presentation.Roads
         {
             var hoveredCell = _worldInteraction.HoveredCell;
             var newIndex = -1;
-            if (hoveredCell.HasValue && _state.TryFindIslandIndex(hoveredCell.Value, out var index))
+            if (hoveredCell.HasValue && _roadQueries.TryFindIslandIndex(hoveredCell.Value, out var index))
             {
                 newIndex = index;
             }
@@ -171,7 +180,7 @@ namespace Varynth.Presentation.Roads
 
         private void UpdatePreview()
         {
-            if (_preview == null || !_startCell.HasValue)
+            if (_preview == null || !_startCell.HasValue || _roadQueries == null)
             {
                 return;
             }
@@ -189,7 +198,7 @@ namespace Varynth.Presentation.Roads
 
             _lastPreviewedEnd = hoveredCell.Value;
 
-            _currentPathValid = _state.TryFindRoute(_selectedRoadId, _startCell.Value, hoveredCell.Value, _registry, _buildingOccupancy, out _currentPath);
+            _currentPathValid = _roadQueries.TryFindRoadRoute(_selectedRoadId, _startCell.Value, hoveredCell.Value, out _currentPath);
             _registry.TryGet(_selectedRoadId, out var definition);
             _preview.Show(_currentPath, definition, _worldInteraction.Grid, _worldInteraction.HeightSource, _currentPathValid);
         }
@@ -198,7 +207,7 @@ namespace Varynth.Presentation.Roads
         {
             var keyboard = Keyboard.current;
             var mouse = Mouse.current;
-            if (keyboard == null || mouse == null)
+            if (keyboard == null || mouse == null || _simulation == null)
             {
                 return;
             }
@@ -240,11 +249,8 @@ namespace Varynth.Presentation.Roads
 
             if (_currentPathValid && _currentPath != null && _currentPath.Count > 0)
             {
-                var command = new BuildRoadCommand(_localPlayerId, GameTick.Zero, _selectedRoadId, _currentPath);
-                if (_commandHandler.Handle(command, out _, out _))
-                {
-                    RoadRuntimeMeshRefresh.RefreshAffectedIslands(_state, _networkDisplays, _registry, _selectedRoadId, _worldInteraction.Grid);
-                }
+                var command = new BuildRoadCommand(_simulation.LocalPlayerId, _simulation.CurrentTick, _selectedRoadId, _currentPath);
+                _simulation.Submit(command);
             }
 
             _startCell = null;
@@ -272,29 +278,39 @@ namespace Varynth.Presentation.Roads
 
         private void TryRemoveHoveredSegment()
         {
-            if (_coordinator.ActiveMode != ConstructionToolCoordinator.ConstructionToolMode.None)
+            if (_simulation == null || _roadQueries == null || _coordinator.ActiveMode != ConstructionToolCoordinator.ConstructionToolMode.None)
             {
                 return;
             }
 
             var hoveredCell = _worldInteraction.HoveredCell;
             var hoveredWorld = _worldInteraction.HoveredWorldPosition;
-            if (!hoveredCell.HasValue || !hoveredWorld.HasValue || !_state.TryFindIslandIndex(hoveredCell.Value, out var islandIndex))
+            if (!hoveredCell.HasValue || !hoveredWorld.HasValue || !_roadQueries.TryFindIslandIndex(hoveredCell.Value, out var islandIndex))
             {
                 return;
             }
 
-            var graph = _state.GetGraph(islandIndex);
-            if (!RoadSegmentPicker.TryFindNearestIncidentSegment(hoveredCell.Value, hoveredWorld.Value, graph, _worldInteraction.Grid, out var segmentId))
+            // Disambiguating which segment at a busy node the cursor is closest to
+            // needs real graph connectivity -- reconstructed here as a disposable
+            // replica from the current snapshot (Phase 2E point 3), never a live
+            // authoritative RoadGraph reference.
+            var islandId = _roadQueries.GetIslandId(islandIndex);
+            var replica = new RoadGraph();
+            foreach (var segment in _simulation.GetSnapshot().Roads)
+            {
+                if (segment.Island == islandId)
+                {
+                    replica.AddSegment(segment.SegmentId, segment.DefinitionId, segment.From, segment.To, segment.Direction, segment.Owner);
+                }
+            }
+
+            if (!RoadSegmentPicker.TryFindNearestIncidentSegment(hoveredCell.Value, hoveredWorld.Value, replica, _worldInteraction.Grid, out var segmentId))
             {
                 return;
             }
 
-            var command = new RemoveRoadCommand(_localPlayerId, GameTick.Zero, segmentId);
-            if (_commandHandler.Handle(command, out _))
-            {
-                RoadRuntimeMeshRefresh.RefreshAffectedIslands(_state, _networkDisplays, _registry, _selectedRoadId, _worldInteraction.Grid);
-            }
+            var command = new RemoveRoadCommand(_simulation.LocalPlayerId, _simulation.CurrentTick, segmentId);
+            _simulation.Submit(command);
         }
     }
 }

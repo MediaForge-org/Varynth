@@ -70,7 +70,7 @@ namespace Varynth.World.Placement
                 }
 
                 var center = grid.CellToWorldCenter(cell);
-                if (heights.TryGetHeight(center.x, center.y, out var height))
+                if (heights.TryGetHeight(center.X, center.Z, out var height))
                 {
                     if (height < minHeight) minHeight = height;
                     if (height > maxHeight) maxHeight = height;

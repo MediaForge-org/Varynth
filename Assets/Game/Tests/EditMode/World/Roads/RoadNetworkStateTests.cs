@@ -1,5 +1,4 @@
 using NUnit.Framework;
-using UnityEngine;
 using Varynth.Core.Common;
 using Varynth.Core.Definitions;
 using Varynth.Core.Definitions.Roads;
@@ -9,73 +8,50 @@ using Varynth.World.Grid;
 using Varynth.World.Placement;
 using Varynth.World.Roads;
 using Varynth.World.Surface;
+using Varynth.World.Terrain;
 
 namespace Varynth.Tests.EditMode.World.Roads
 {
     // Mirrors ArchipelagoPlacementStateTests' fixture shape exactly -- built purely
-    // from IslandSurfaceRuntimeData + UnityEngine.Terrain, never any
-    // Varynth.Tooling.Editor type.
+    // from plain SimulationIslandData + DenseGridHeightSource (Phase 2E), no
+    // UnityEngine.Terrain/GameObject/ScriptableObject and no Varynth.Tooling.Editor
+    // type. Genuinely headless.
     public class RoadNetworkStateTests
     {
-        private GameObject _islandAGo;
-        private GameObject _islandBGo;
-        private UnityEngine.Terrain _islandA;
-        private UnityEngine.Terrain _islandB;
         private WorldGrid _grid;
         private ContentRegistry<RoadDefinition> _registry;
 
         [SetUp]
         public void SetUp()
         {
-            _grid = new WorldGrid(4f, Vector2.zero);
-            _islandA = CreateFlatTerrain("IslandA", new Vector3(0f, -15f, 0f), 40f, out _islandAGo);
-            _islandB = CreateFlatTerrain("IslandB", new Vector3(200f, -15f, 200f), 40f, out _islandBGo);
+            _grid = new WorldGrid(4f, (0f, 0f));
 
             var roadDefinition = new RoadDefinition(ContentId.Parse("road.prototype.basic"), LocalizationKey.Parse("road.name"), "road");
             _registry = new ContentRegistry<RoadDefinition>();
             _registry.Register(roadDefinition);
         }
 
-        [TearDown]
-        public void TearDown()
+        private static SimulationIslandData CreateAllBuildableIslandData(string name, GridCoordinate origin, int width, int height)
         {
-            Object.DestroyImmediate(_islandAGo);
-            Object.DestroyImmediate(_islandBGo);
-        }
-
-        private static UnityEngine.Terrain CreateFlatTerrain(string name, Vector3 position, float worldSize, out GameObject go)
-        {
-            var data = new TerrainData { heightmapResolution = 33, size = new Vector3(worldSize, 40f, worldSize) };
-            var heights = new float[33, 33];
-            for (var y = 0; y < 33; y++)
-            for (var x = 0; x < 33; x++)
-                heights[y, x] = 0.5f;
-            data.SetHeights(0, 0, heights);
-
-            go = new GameObject(name);
-            var terrain = go.AddComponent<UnityEngine.Terrain>();
-            terrain.terrainData = data;
-            go.transform.position = position;
-            return terrain;
-        }
-
-        private static IslandSurfaceRuntimeData CreateAllBuildableRuntimeData(GridCoordinate origin, int width, int height)
-        {
-            var data = ScriptableObject.CreateInstance<IslandSurfaceRuntimeData>();
-            var flags = new byte[width * height];
+            var flags = new SurfaceCellFlags[width * height];
             for (var i = 0; i < flags.Length; i++)
             {
-                flags[i] = (byte)(SurfaceCellFlags.Land | SurfaceCellFlags.Buildable);
+                flags[i] = SurfaceCellFlags.Land | SurfaceCellFlags.Buildable;
             }
-            data.SetData(origin.X, origin.Z, width, height, flags);
-            return data;
+            var cellHeights = new float[width * height];
+            return new SimulationIslandData(IslandId.FromName(name), name, origin.X, origin.Z, width, height, flags, cellHeights);
         }
 
         private RoadNetworkState BuildState()
         {
             var state = new RoadNetworkState(_grid);
-            state.AddIsland(CreateAllBuildableRuntimeData(new GridCoordinate(0, 0), 10, 10), _islandA);
-            state.AddIsland(CreateAllBuildableRuntimeData(new GridCoordinate(50, 50), 10, 10), _islandB);
+
+            var islandAData = CreateAllBuildableIslandData("IslandA", new GridCoordinate(0, 0), 10, 10);
+            state.AddIsland(islandAData, new DenseGridHeightSource(_grid, 0, 0, 10, 10, islandAData.CellHeights));
+
+            var islandBData = CreateAllBuildableIslandData("IslandB", new GridCoordinate(50, 50), 10, 10);
+            state.AddIsland(islandBData, new DenseGridHeightSource(_grid, 50, 50, 10, 10, islandBData.CellHeights));
+
             return state;
         }
 
